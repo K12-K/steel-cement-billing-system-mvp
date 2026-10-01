@@ -1,0 +1,6 @@
+{
+  "name": "Steel Sariya & Cement Billing Management System",
+  "description": "Comprehensive construction material billing, inventory control, variant tracking, customer management, payment audit, and GST invoice generation for steel and cement businesses.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
