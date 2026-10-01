@@ -8,6 +8,11 @@
 }
 
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 8mm;
+  }
+
   body {
     background-color: #ffffff !important;
     color: #000000 !important;

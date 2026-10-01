@@ -1,13 +1,13 @@
 import React from 'react';
-import { 
-  X, 
-  CheckCircle2, 
-  ArrowLeft, 
-  Receipt, 
-  User, 
-  Calendar, 
-  Clock, 
-  CreditCard, 
+import {
+  X,
+  CheckCircle2,
+  ArrowLeft,
+  Receipt,
+  User,
+  Calendar,
+  Clock,
+  CreditCard,
   IndianRupee,
   Layers,
   AlertCircle
@@ -62,7 +62,7 @@ export const BillConfirmationModal: React.FC<BillConfirmationModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-xs overflow-y-auto">
-      <div 
+      <div
         className="w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden relative my-6 animate-in fade-in zoom-in-95 duration-150"
         role="dialog"
       >
@@ -134,15 +134,15 @@ export const BillConfirmationModal: React.FC<BillConfirmationModalProps> = ({
               Materials &amp; Dispatch Items ({billData.items.length})
             </h4>
 
-            <div className="border border-slate-800 rounded-xl overflow-hidden">
-              <table className="w-full text-left text-xs">
+            <div className="border border-slate-800 rounded-xl overflow-x-auto">
+              <table className="w-full text-left text-xs min-w-[460px]">
                 <thead>
                   <tr className="bg-slate-950/80 border-b border-slate-800 text-[10px] text-slate-400 uppercase font-semibold">
-                    <th className="py-2.5 px-3">Item</th>
-                    <th className="py-2.5 px-3">Unit</th>
-                    <th className="py-2.5 px-3 text-right">Quantity</th>
-                    <th className="py-2.5 px-3 text-right">Rate</th>
-                    <th className="py-2.5 px-3 text-right">Total (₹)</th>
+                    <th className="py-2.5 px-3 whitespace-nowrap">Item</th>
+                    <th className="py-2.5 px-3 whitespace-nowrap">Unit</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Quantity</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Rate</th>
+                    <th className="py-2.5 px-3 text-right whitespace-nowrap">Total (₹)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-800/60 bg-slate-900/60">
@@ -152,14 +152,14 @@ export const BillConfirmationModal: React.FC<BillConfirmationModalProps> = ({
                         <div className="font-semibold text-white">{item.product_name}</div>
                         <div className="text-[10px] text-slate-400">{item.variant_name}</div>
                       </td>
-                      <td className="py-2.5 px-3 text-slate-400">{item.unit}</td>
-                      <td className="py-2.5 px-3 text-right font-bold text-amber-300">
+                      <td className="py-2.5 px-3 text-slate-400 whitespace-nowrap">{item.unit}</td>
+                      <td className="py-2.5 px-3 text-right font-bold text-amber-300 whitespace-nowrap">
                         {item.quantity.toLocaleString('en-IN')}
                       </td>
-                      <td className="py-2.5 px-3 text-right text-slate-300">
+                      <td className="py-2.5 px-3 text-right text-slate-300 whitespace-nowrap">
                         ₹{item.rate.toLocaleString('en-IN')}
                       </td>
-                      <td className="py-2.5 px-3 text-right font-bold text-white">
+                      <td className="py-2.5 px-3 text-right font-bold text-white whitespace-nowrap">
                         ₹{item.total.toLocaleString('en-IN')}
                       </td>
                     </tr>
@@ -180,13 +180,12 @@ export const BillConfirmationModal: React.FC<BillConfirmationModalProps> = ({
 
             <div className="flex justify-between items-center text-xs pt-2 border-t border-slate-800">
               <span className="text-slate-400">Payment Status:</span>
-              <span className={`px-2 py-0.5 rounded font-bold text-xs ${
-                billData.payment_status === 'Full Paid'
-                  ? 'bg-emerald-500/20 text-emerald-300'
-                  : billData.payment_status === 'Partial Paid'
+              <span className={`px-2 py-0.5 rounded font-bold text-xs ${billData.payment_status === 'Full Paid'
+                ? 'bg-emerald-500/20 text-emerald-300'
+                : billData.payment_status === 'Partial Paid'
                   ? 'bg-amber-500/20 text-amber-300'
                   : 'bg-rose-500/20 text-rose-300'
-              }`}>
+                }`}>
                 {billData.payment_status}
               </span>
             </div>

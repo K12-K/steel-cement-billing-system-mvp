@@ -1,27 +1,30 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  Receipt, 
-  Search, 
-  Filter, 
-  Calendar, 
-  Eye, 
-  Edit3, 
-  Printer, 
-  Share2, 
-  Trash2, 
-  Plus, 
-  Clock, 
-  IndianRupee, 
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import {
+  Receipt,
+  Search,
+  Filter,
+  Calendar,
+  Eye,
+  Edit3,
+  Printer,
+  Share2,
+  Trash2,
+  Plus,
+  Clock,
+  IndianRupee,
   RefreshCw,
   ChevronLeft,
   ChevronRight,
-  CreditCard
+  CreditCard,
+  Loader2
 } from 'lucide-react';
 import { Bill, Product } from '../types';
 import { api } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { ConfirmationModal } from '../components/ConfirmationModal';
 import { RecordPaymentModal } from '../components/RecordPaymentModal';
+import { InvoiceDocument } from '../components/InvoiceDocument';
+import { shareOrDownloadPdf } from '../utils/invoicePdf';
 
 interface BillsProps {
   onNavigate: (view: string, id?: string) => void;
@@ -59,13 +62,15 @@ export const Bills: React.FC<BillsProps> = ({ onNavigate }) => {
     billNumber: '',
   });
 
+  const [sharingBillId, setSharingBillId] = useState<string | null>(null);
+
   const fetchProductsList = useCallback(async () => {
     try {
       const res = await api.products.list();
       if (res.success) {
         setProducts(res.products);
       }
-    } catch (e) {}
+    } catch (e) { }
   }, []);
 
   const fetchBills = useCallback(async () => {
@@ -118,19 +123,26 @@ export const Bills: React.FC<BillsProps> = ({ onNavigate }) => {
   };
 
   const handleShareBill = async (bill: Bill) => {
-    const text = `Bill #${bill.bill_number} for ${bill.customer_name}\nDate: ${bill.bill_date}\nTotal: ₹${bill.total_amount.toLocaleString('en-IN')}\nPaid: ₹${bill.paid_amount.toLocaleString('en-IN')}\nPending: ₹${bill.pending_amount.toLocaleString('en-IN')}\nStatus: ${bill.payment_status}`;
-    if (navigator.share) {
-      try {
-        await navigator.share({
-          title: `Invoice ${bill.bill_number}`,
-          text: text,
-        });
-      } catch (err) {
-        // User cancelled or share failed
+    try {
+      setSharingBillId(bill.id);
+      showToast('Generating invoice PDF...', 'info');
+
+      // Fetch complete bill details with snapshot items & settings if not already present
+      let fullBill = bill;
+      if (!bill.items || bill.items.length === 0 || !bill.settings) {
+        const res = await api.bills.get(bill.id);
+        if (res.success && res.bill) {
+          fullBill = res.bill;
+        }
       }
-    } else {
-      await navigator.clipboard.writeText(text);
-      showToast(`Bill details copied to clipboard for sharing!`, 'success');
+
+      await shareOrDownloadPdf(null, fullBill, (msg, type) => {
+        showToast(msg, type);
+      });
+    } catch (err: any) {
+      showToast(err.message || 'Failed to share invoice PDF.', 'error');
+    } finally {
+      setSharingBillId(null);
     }
   };
 
@@ -296,7 +308,7 @@ export const Bills: React.FC<BillsProps> = ({ onNavigate }) => {
       ) : (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
+            <table className="w-full text-left text-xs min-w-[720px]">
               <thead>
                 <tr className="border-b border-slate-800 bg-slate-950/60 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
                   <th className="py-3 px-4 sm:px-6">Bill Number</th>
@@ -358,22 +370,20 @@ export const Bills: React.FC<BillsProps> = ({ onNavigate }) => {
 
                     {/* Pending Amount */}
                     <td className="py-3 px-4 text-right whitespace-nowrap">
-                      <span className={`font-bold ${
-                        bill.pending_amount > 0 ? 'text-amber-400' : 'text-slate-500'
-                      }`}>
+                      <span className={`font-bold ${bill.pending_amount > 0 ? 'text-amber-400' : 'text-slate-500'
+                        }`}>
                         ₹{bill.pending_amount.toLocaleString('en-IN')}
                       </span>
                     </td>
 
                     {/* Status Badge */}
                     <td className="py-3 px-4 text-center whitespace-nowrap">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
-                        bill.payment_status === 'Full Paid'
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                          : bill.payment_status === 'Partial Paid'
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${bill.payment_status === 'Full Paid'
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                        : bill.payment_status === 'Partial Paid'
                           ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
                           : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
-                      }`}>
+                        }`}>
                         {bill.payment_status}
                       </span>
                     </td>
@@ -399,10 +409,15 @@ export const Bills: React.FC<BillsProps> = ({ onNavigate }) => {
                         </button>
                         <button
                           onClick={() => handleShareBill(bill)}
-                          className="p-1.5 text-slate-400 hover:text-amber-400 rounded-lg hover:bg-slate-800 transition-colors"
-                          title="Share Bill"
+                          disabled={sharingBillId === bill.id}
+                          className="p-1.5 text-slate-400 hover:text-amber-400 rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-50"
+                          title="Share Tax Invoice as PDF"
                         >
-                          <Share2 className="w-3.5 h-3.5" />
+                          {sharingBillId === bill.id ? (
+                            <Loader2 className="w-3.5 h-3.5 text-amber-400 animate-spin" />
+                          ) : (
+                            <Share2 className="w-3.5 h-3.5" />
+                          )}
                         </button>
                         <button
                           onClick={() => onNavigate('bill-edit', bill.id)}
