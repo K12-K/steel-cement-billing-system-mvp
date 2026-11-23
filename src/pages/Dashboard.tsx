@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  TrendingUp, 
-  IndianRupee, 
-  Clock, 
-  FileText, 
-  CheckCircle2, 
-  AlertCircle, 
-  Layers, 
-  ArrowUpRight, 
-  ArrowDownRight, 
+import {
+  TrendingUp,
+  IndianRupee,
+  Clock,
+  FileText,
+  CheckCircle2,
+  AlertCircle,
+  Layers,
+  ArrowUpRight,
+  ArrowDownRight,
   CreditCard,
   Calendar,
   AlertTriangle,
@@ -360,11 +360,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                   className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl flex items-center justify-between hover:border-slate-700 transition-colors gap-3"
                 >
                   <div className="overflow-hidden">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-xs font-bold text-white">{bill.bill_number}</span>
-                      <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold ${
-                        bill.payment_status === 'Partial Paid' ? 'bg-amber-500/20 text-amber-300' : 'bg-rose-500/20 text-rose-300'
-                      }`}>
+                      {bill.customer_account_number && (
+                        <span className="text-[10px] px-1.5 py-0.2 rounded font-mono font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30">
+                          A/C #{bill.customer_account_number}
+                        </span>
+                      )}
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded font-semibold ${bill.payment_status === 'Partial Paid' ? 'bg-amber-500/20 text-amber-300' : 'bg-rose-500/20 text-rose-300'
+                        }`}>
                         {bill.payment_status}
                       </span>
                     </div>
@@ -372,7 +376,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                       {bill.customer_name}
                     </p>
                     <p className="text-[11px] text-slate-500">
-                      Date: {bill.bill_date} {bill.reminder_date && `• Reminder: ${bill.reminder_date}`}
+                      Date: {bill.bill_date}
+                      {bill.reminder_date && ` • Reminder: ${bill.reminder_date}${bill.reminder_time ? ` ${bill.reminder_time}` : ''}`}
                     </p>
                   </div>
 
@@ -444,13 +449,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                     <div className="text-xs font-bold text-white">
                       ₹{bill.total_amount.toLocaleString('en-IN')}
                     </div>
-                    <span className={`inline-block text-[10px] px-1.5 py-0.2 rounded font-semibold mt-0.5 ${
-                      bill.payment_status === 'Full Paid'
+                    <span className={`inline-block text-[10px] px-1.5 py-0.2 rounded font-semibold mt-0.5 ${bill.payment_status === 'Full Paid'
                         ? 'bg-emerald-500/20 text-emerald-300'
                         : bill.payment_status === 'Partial Paid'
-                        ? 'bg-amber-500/20 text-amber-300'
-                        : 'bg-rose-500/20 text-rose-300'
-                    }`}>
+                          ? 'bg-amber-500/20 text-amber-300'
+                          : 'bg-rose-500/20 text-rose-300'
+                      }`}>
                       {bill.payment_status}
                     </span>
                   </div>
@@ -507,11 +511,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
                       +₹{p.amount.toLocaleString('en-IN')}
                     </td>
                     <td className="py-2.5">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
-                        p.payment_status === 'Full Paid'
+                      <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${p.payment_status === 'Full Paid'
                           ? 'bg-emerald-500/20 text-emerald-300'
                           : 'bg-amber-500/20 text-amber-300'
-                      }`}>
+                        }`}>
                         {p.payment_status}
                       </span>
                     </td>

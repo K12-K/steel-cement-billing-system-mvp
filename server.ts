@@ -8,6 +8,7 @@ import { billsRouter } from './server/bills';
 import { paymentsRouter } from './server/payments';
 import { dashboardRouter } from './server/dashboard';
 import { settingsRouter } from './server/settings';
+import { rozmelRouter } from './server/rozmel';
 import { getDatabase } from './server/db';
 
 // Pre-initialize and seed DB if empty
@@ -33,6 +34,7 @@ async function startServer() {
   app.use('/api/payments', requireAuth, paymentsRouter);
   app.use('/api/dashboard', requireAuth, dashboardRouter);
   app.use('/api/settings', requireAuth, settingsRouter);
+  app.use('/api/rozmel', requireAuth, rozmelRouter);
 
   // Dev vs Production static handling
   if (!isProd) {

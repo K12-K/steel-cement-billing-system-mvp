@@ -1,17 +1,18 @@
 import React from 'react';
-import { 
-  LayoutDashboard, 
-  Package, 
-  Users, 
-  FilePlus2, 
-  Receipt, 
-  Clock, 
-  History, 
-  Settings, 
-  LogOut, 
+import {
+  LayoutDashboard,
+  Package,
+  Users,
+  FilePlus2,
+  Receipt,
+  Clock,
+  History,
+  Settings,
+  LogOut,
   Building2,
   ChevronRight,
-  ShieldCheck
+  ShieldCheck,
+  BookOpen
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -36,7 +37,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { label: 'Customers', path: 'customers', icon: Users },
     { label: 'Create Bill', path: 'create-bill', icon: FilePlus2, highlight: true },
     { label: 'Bills', path: 'bills', icon: Receipt },
-    { label: 'Pending Payments', path: 'pending-payments', icon: Clock },
+    { label: 'Pending Dues & Reminders', path: 'pending-payments', icon: Clock },
+    { label: 'Rozmel / Cash Book', path: 'rozmel', icon: BookOpen },
     { label: 'Payment Audit', path: 'payment-audit', icon: History },
     { label: 'Settings / Profile', path: 'settings', icon: Settings },
   ];
@@ -58,9 +60,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Sidebar Container */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-40 w-64 bg-slate-950 border-r border-slate-800/80 flex flex-col transition-transform duration-200 ease-in-out md:translate-x-0 ${
-          mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
-        }`}
+        className={`fixed top-0 bottom-0 left-0 z-40 w-64 bg-slate-950 border-r border-slate-800/80 flex flex-col transition-transform duration-200 ease-in-out md:translate-x-0 ${mobileOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'
+          }`}
       >
         {/* Brand Header */}
         <div className="p-5 border-b border-slate-800/80 flex items-center gap-3">
@@ -92,11 +93,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <button
                   key={item.path}
                   onClick={() => handleItemClick(item.path)}
-                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-semibold text-xs tracking-wide transition-all shadow-md ${
-                    isActive
+                  className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl font-semibold text-xs tracking-wide transition-all shadow-md ${isActive
                       ? 'bg-amber-600 text-white shadow-amber-950/50'
                       : 'bg-amber-600/15 text-amber-300 border border-amber-500/30 hover:bg-amber-600/25'
-                  }`}
+                    }`}
                 >
                   <div className="flex items-center gap-2.5">
                     <Icon className="w-4 h-4 text-amber-400 shrink-0" />
@@ -113,11 +113,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
               <button
                 key={item.path}
                 onClick={() => handleItemClick(item.path)}
-                className={`w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-xs font-medium transition-all ${
-                  isActive
+                className={`w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-xs font-medium transition-all ${isActive
                     ? 'bg-slate-800 text-white font-semibold border border-slate-700/80 shadow-xs'
                     : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/80'
-                }`}
+                  }`}
               >
                 <div className="flex items-center gap-2.5">
                   <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-amber-400' : 'text-slate-400'}`} />

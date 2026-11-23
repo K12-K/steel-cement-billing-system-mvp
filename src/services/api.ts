@@ -7,7 +7,11 @@ import {
   Payment, 
   StockTransaction, 
   BusinessSettings, 
-  DashboardStats 
+  DashboardStats,
+  RozmelEntry,
+  RozmelSummary,
+  RozmelDailyBreakdown,
+  DueReminder
 } from '../types';
 
 const TOKEN_KEY = 'steel_cement_auth_token';
@@ -153,6 +157,9 @@ export const api = {
     get: (id: string) =>
       request<{ success: boolean; customer: Customer & { bills: Bill[]; payments: Payment[] } }>(`/api/customers/${id}`),
 
+    byAccount: (accountNumber: string) =>
+      request<{ success: boolean; customer: Customer }>(`/api/customers/by-account/${encodeURIComponent(accountNumber)}`),
+
     create: (data: Partial<Customer>) =>
       request<{ success: boolean; message: string; customer: Customer }>('/api/customers', {
         method: 'POST',
@@ -209,6 +216,12 @@ export const api = {
       request<{ success: boolean; message: string }>(`/api/bills/${id}`, {
         method: 'DELETE',
       }),
+
+    updateReminder: (id: string, payload: { reminder_date: string | null; reminder_time?: string | null; reminder_note?: string }) =>
+      request<{ success: boolean; message: string; bill: Bill }>(`/api/bills/${id}/reminder`, {
+        method: 'PATCH',
+        body: JSON.stringify(payload),
+      }),
   },
 
   // Payments
@@ -254,6 +267,37 @@ export const api = {
         total_pending_bills: number;
       }>(`/api/payments/pending?${q.toString()}`);
     },
+
+    customDues: {
+      list: (params?: { search?: string; status?: string; reminder_due?: boolean }) => {
+        const q = new URLSearchParams();
+        if (params?.search) q.set('search', params.search);
+        if (params?.status) q.set('status', params.status);
+        if (params?.reminder_due) q.set('reminder_due', 'true');
+        return request<{
+          success: boolean;
+          dues: DueReminder[];
+          total_pending_amount: number;
+        }>(`/api/payments/custom-dues?${q.toString()}`);
+      },
+
+      create: (payload: Partial<DueReminder>) =>
+        request<{ success: boolean; message: string; due: DueReminder }>('/api/payments/custom-dues', {
+          method: 'POST',
+          body: JSON.stringify(payload),
+        }),
+
+      update: (id: string, payload: Partial<DueReminder>) =>
+        request<{ success: boolean; message: string; due: DueReminder }>(`/api/payments/custom-dues/${id}`, {
+          method: 'PUT',
+          body: JSON.stringify(payload),
+        }),
+
+      delete: (id: string) =>
+        request<{ success: boolean; message: string }>(`/api/payments/custom-dues/${id}`, {
+          method: 'DELETE',
+        }),
+    },
   },
 
   // Dashboard
@@ -271,6 +315,41 @@ export const api = {
       request<{ success: boolean; message: string; settings: BusinessSettings }>('/api/settings', {
         method: 'PUT',
         body: JSON.stringify(payload),
+      }),
+  },
+
+  // Rozmel / Cash Book (Standalone)
+  rozmel: {
+    list: (params?: { date?: string; from_date?: string; to_date?: string; type?: string; search?: string }) => {
+      const q = new URLSearchParams();
+      if (params?.date) q.set('date', params.date);
+      if (params?.from_date) q.set('from_date', params.from_date);
+      if (params?.to_date) q.set('to_date', params.to_date);
+      if (params?.type) q.set('type', params.type);
+      if (params?.search) q.set('search', params.search);
+      return request<{
+        success: boolean;
+        entries: RozmelEntry[];
+        summary: RozmelSummary;
+        daily_breakdown: RozmelDailyBreakdown[];
+      }>(`/api/rozmel?${q.toString()}`);
+    },
+
+    create: (payload: Partial<RozmelEntry>) =>
+      request<{ success: boolean; message: string; entry: RozmelEntry }>('/api/rozmel', {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+
+    update: (id: string, payload: Partial<RozmelEntry>) =>
+      request<{ success: boolean; message: string; entry: RozmelEntry }>(`/api/rozmel/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload),
+      }),
+
+    delete: (id: string) =>
+      request<{ success: boolean; message: string }>(`/api/rozmel/${id}`, {
+        method: 'DELETE',
       }),
   },
 };

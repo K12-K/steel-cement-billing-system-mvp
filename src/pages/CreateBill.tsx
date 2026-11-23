@@ -1,22 +1,22 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { 
-  FilePlus2, 
-  User, 
-  Phone, 
-  MapPin, 
-  Plus, 
-  Trash2, 
-  Layers, 
-  IndianRupee, 
-  Clock, 
-  CreditCard, 
-  AlertCircle, 
-  CheckCircle2, 
+import {
+  FilePlus2,
+  User,
+  Phone,
+  Plus,
+  Trash2,
+  Layers,
+  Clock,
+  CreditCard,
+  AlertCircle,
   ArrowRight,
   Search,
-  Check
+  Check,
+  Hash,
+  Hammer,
+  Tag
 } from 'lucide-react';
-import { Customer, Product, ProductVariant } from '../types';
+import { Customer, Product, LaborChargeItem } from '../types';
 import { api } from '../services/api';
 import { useToast } from '../context/ToastContext';
 import { BillConfirmationModal } from './BillConfirmationModal';
@@ -29,6 +29,14 @@ interface BillItemState {
   quantity: string;
   rate: string;
   total: number;
+}
+
+interface LaborItemState {
+  id: string;
+  description: string;
+  quantity: string;
+  rate: string;
+  amount: number;
 }
 
 interface CreateBillProps {
@@ -50,6 +58,7 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
 
   // Customer Section
   const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
+  const [customerAccountNumber, setCustomerAccountNumber] = useState<string>('');
   const [customerName, setCustomerName] = useState<string>('');
   const [customerPhone, setCustomerPhone] = useState<string>('');
   const [customerAddress, setCustomerAddress] = useState<string>('');
@@ -65,17 +74,36 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
   // Product Items
   const [items, setItems] = useState<BillItemState[]>([]);
 
-  // Payment Section
+  // Labor Charges (Majuri)
+  const [laborItems, setLaborItems] = useState<LaborItemState[]>([]);
+
+  // Net Discount
+  const [discountAmount, setDiscountAmount] = useState<string>('');
+
+  // Payment & Manual Reminder Section
   const [paymentStatus, setPaymentStatus] = useState<'Pending' | 'Partial Paid' | 'Full Paid'>('Partial Paid');
   const [paidAmount, setPaidAmount] = useState<string>('');
   const [paymentMode, setPaymentMode] = useState<string>('Cash');
-  const [reminderType, setReminderType] = useState<string>('2 Weeks');
+  const [reminderDate, setReminderDate] = useState<string>('');
+  const [reminderTime, setReminderTime] = useState<string>('');
+  const [reminderNote, setReminderNote] = useState<string>('');
   const [notes, setNotes] = useState<string>('');
 
   // Modals & Submitting
   const [isReviewOpen, setIsReviewOpen] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [validationError, setValidationError] = useState<string | null>(null);
+
+  const applyLinkedCustomer = useCallback((c: Customer) => {
+    setSelectedCustomerId(c.id);
+    setCustomerAccountNumber(c.account_number || '');
+    setCustomerName(c.name);
+    setCustomerPhone(c.phone || '');
+    setCustomerAddress(c.address || '');
+    setCustomerTaluko(c.taluko || '');
+    setCustomerDistrict(c.district || '');
+    setCustomerState(c.state || 'Gujarat');
+  }, []);
 
   // Load next bill number, customers, and active products
   const loadInitialData = useCallback(async () => {
@@ -93,13 +121,7 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
         if (initialCustomerId) {
           const targetCust = custRes.customers.find(c => c.id === initialCustomerId);
           if (targetCust) {
-            setSelectedCustomerId(targetCust.id);
-            setCustomerName(targetCust.name);
-            setCustomerPhone(targetCust.phone);
-            setCustomerAddress(targetCust.address || '');
-            setCustomerTaluko(targetCust.taluko || '');
-            setCustomerDistrict(targetCust.district || '');
-            setCustomerState(targetCust.state || 'Gujarat');
+            applyLinkedCustomer(targetCust);
           }
         }
       }
@@ -108,7 +130,6 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
         const activeProds = prodRes.products.filter(p => p.status === 'active');
         setProducts(activeProds);
 
-        // Populate initial item row if variants exist
         if (activeProds.length > 0) {
           const firstProd = activeProds[0];
           const firstVar = firstProd.variants[0];
@@ -132,27 +153,45 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
     } finally {
       setLoadingInitial(false);
     }
-  }, [initialCustomerId, showToast]);
+  }, [initialCustomerId, applyLinkedCustomer, showToast]);
 
   useEffect(() => {
     loadInitialData();
   }, [loadInitialData]);
 
-  // Handle Customer Selection
+  // Automatic Party Linkage when Account Number is entered
+  const handleAccountNumberChange = (val: string) => {
+    setCustomerAccountNumber(val);
+    const trimmed = val.trim().toLowerCase();
+    if (!trimmed) {
+      if (selectedCustomerId) {
+        setSelectedCustomerId('');
+      }
+      return;
+    }
+
+    const matched = customers.find(
+      c => c.account_number && c.account_number.trim().toLowerCase() === trimmed
+    );
+
+    if (matched) {
+      applyLinkedCustomer(matched);
+      setCustomerAccountNumber(val); // preserve user typing casing/whitespace while linking
+    } else if (selectedCustomerId) {
+      setSelectedCustomerId('');
+    }
+  };
+
+  // Handle Customer Selection from dropdown
   const handleSelectCustomer = (c: Customer) => {
-    setSelectedCustomerId(c.id);
-    setCustomerName(c.name);
-    setCustomerPhone(c.phone);
-    setCustomerAddress(c.address || '');
-    setCustomerTaluko(c.taluko || '');
-    setCustomerDistrict(c.district || '');
-    setCustomerState(c.state || 'Gujarat');
+    applyLinkedCustomer(c);
     setShowCustomerDropdown(false);
     setCustomerSearchQuery('');
   };
 
   const handleClearCustomer = () => {
     setSelectedCustomerId('');
+    setCustomerAccountNumber('');
     setCustomerName('');
     setCustomerPhone('');
     setCustomerAddress('');
@@ -262,9 +301,42 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
     });
   };
 
-  // Grand Total Calculation
+  // Labor Charges (Majuri) handlers
+  const handleAddLaborRow = () => {
+    setLaborItems(prev => [
+      ...prev,
+      {
+        id: `labor_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
+        description: 'Loading / Unloading (Majuri)',
+        quantity: '1',
+        rate: '500',
+        amount: 500,
+      },
+    ]);
+  };
+
+  const handleRemoveLaborRow = (index: number) => {
+    setLaborItems(prev => prev.filter((_, idx) => idx !== index));
+  };
+
+  const handleLaborChange = (index: number, field: 'description' | 'quantity' | 'rate', val: string) => {
+    setLaborItems(prev => {
+      const updated = [...prev];
+      const current = { ...updated[index], [field]: val };
+      const q = parseFloat(current.quantity) || 0;
+      const r = parseFloat(current.rate) || 0;
+      current.amount = Math.round(q * r * 100) / 100;
+      updated[index] = current;
+      return updated;
+    });
+  };
+
+  // Totals Calculation: Materials Subtotal + Labor Charges - Net Discount
   const subtotal = Math.round(items.reduce((sum, item) => sum + (item.total || 0), 0) * 100) / 100;
-  const totalAmount = subtotal;
+  const laborTotal = Math.round(laborItems.reduce((sum, l) => sum + (l.amount || 0), 0) * 100) / 100;
+  const grossBeforeDiscount = Math.round((subtotal + laborTotal) * 100) / 100;
+  const parsedDiscount = Math.max(0, Math.round((parseFloat(discountAmount) || 0) * 100) / 100);
+  const totalAmount = Math.max(0, Math.round((grossBeforeDiscount - parsedDiscount) * 100) / 100);
 
   // Real-time Payment & Pending sync
   let calculatedPaid = 0;
@@ -280,7 +352,7 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
   // Sync paidAmount when switching to Partial Paid
   useEffect(() => {
     if (paymentStatus === 'Partial Paid' && (!paidAmount || parseFloat(paidAmount) === 0)) {
-      setPaidAmount(String(Math.round(totalAmount * 0.5))); // suggest 50% advance
+      setPaidAmount(String(Math.round(totalAmount * 0.5)));
     }
   }, [paymentStatus, totalAmount]);
 
@@ -289,8 +361,8 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
     e.preventDefault();
     setValidationError(null);
 
-    if (!customerName.trim() || !customerPhone.trim()) {
-      setValidationError('Customer Name and Phone Number are required.');
+    if (!customerName.trim() || (!customerPhone.trim() && !customerAccountNumber.trim() && !selectedCustomerId)) {
+      setValidationError('Customer Name and either Party Account Number or Phone Number are required.');
       return;
     }
 
@@ -299,7 +371,6 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
       return;
     }
 
-    // Check each item
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
       const qty = parseFloat(it.quantity) || 0;
@@ -314,7 +385,6 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
         return;
       }
 
-      // Check stock availability
       if (qty > it.availableStock) {
         const prod = products.find(p => p.id === it.productId);
         const variant = prod?.variants.find(v => v.id === it.variantId);
@@ -323,6 +393,11 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
         );
         return;
       }
+    }
+
+    if (parsedDiscount > grossBeforeDiscount) {
+      setValidationError(`Net discount (₹${parsedDiscount}) cannot exceed gross total (₹${grossBeforeDiscount}).`);
+      return;
     }
 
     if (paymentStatus === 'Partial Paid') {
@@ -340,6 +415,16 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
     setIsReviewOpen(true);
   };
 
+  const formattedLaborItems: LaborChargeItem[] = laborItems
+    .filter(l => l.description.trim() || l.amount > 0)
+    .map(l => ({
+      id: l.id,
+      description: l.description.trim() || 'Labor Charges (Majuri)',
+      quantity: parseFloat(l.quantity) || 1,
+      rate: parseFloat(l.rate) || 0,
+      amount: l.amount,
+    }));
+
   // Final Confirmation & Submission
   const handleConfirmAndSave = async () => {
     setIsSaving(true);
@@ -350,6 +435,7 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
         bill_number: billNumber,
         bill_date: billDate,
         customer_id: selectedCustomerId || undefined,
+        customer_account_number: customerAccountNumber.trim() || undefined,
         customer_name: customerName.trim(),
         customer_phone: customerPhone.trim(),
         customer_address: customerAddress.trim(),
@@ -369,10 +455,15 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
             rate: parseFloat(it.rate),
           };
         }),
+        labor_items: formattedLaborItems,
+        labor_charges: laborTotal,
+        discount_amount: parsedDiscount,
         payment_status: paymentStatus,
         paid_amount: calculatedPaid,
         payment_mode: paymentMode,
-        reminder_type: reminderType,
+        reminder_date: reminderDate || null,
+        reminder_time: reminderDate && reminderTime ? reminderTime : null,
+        reminder_note: reminderNote.trim() || undefined,
         notes: notes.trim(),
       };
 
@@ -400,12 +491,12 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
     );
   }
 
-  // Filtered customer list for quick select
   const filteredCustomers = customers.filter(c =>
     customerSearchQuery === ''
       ? true
       : c.name.toLowerCase().includes(customerSearchQuery.toLowerCase()) ||
-        c.phone.includes(customerSearchQuery)
+      (c.account_number && c.account_number.toLowerCase().includes(customerSearchQuery.toLowerCase())) ||
+      (c.phone && c.phone.includes(customerSearchQuery))
   );
 
   return (
@@ -418,11 +509,11 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
             Create Material Dispatch Bill
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Generate invoice for TMT steel, cement bags, or construction materials with real-time stock deduction.
+            Enter Party Account Number for auto-linkage, add material items, labor charges (Majuri), net discount, and custom reminder.
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 flex-wrap">
           <div className="px-3.5 py-1.5 rounded-xl bg-slate-950 border border-slate-800 flex items-center gap-2">
             <span className="text-[11px] text-slate-400">Bill No:</span>
             <span className="text-xs font-mono font-bold text-amber-400">{billNumber}</span>
@@ -447,13 +538,13 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
           </div>
         )}
 
-        {/* 1. Customer Section */}
+        {/* 1. Customer Section with Party Account Number Auto-Link */}
         <div className="p-5 bg-slate-900 border border-slate-800 rounded-2xl shadow-lg space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-800">
             <div className="flex items-center gap-2">
               <User className="w-4 h-4 text-amber-400" />
               <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-                1. Customer &amp; Site Details
+                1. Party Account &amp; Site Details
               </h3>
             </div>
 
@@ -466,7 +557,7 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
               >
                 <Search className="w-3.5 h-3.5" />
                 <span>
-                  {selectedCustomerId ? 'Change Customer' : 'Select Existing Customer'}
+                  {selectedCustomerId ? 'Change Party' : 'Browse Party Directory'}
                 </span>
               </button>
 
@@ -475,7 +566,7 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
                   <div className="p-1 mb-2">
                     <input
                       type="text"
-                      placeholder="Search name or phone..."
+                      placeholder="Search A/C No., name, or phone..."
                       value={customerSearchQuery}
                       onChange={(e) => setCustomerSearchQuery(e.target.value)}
                       className="w-full px-2.5 py-1.5 bg-slate-900 border border-slate-700 rounded-lg text-xs text-white placeholder-slate-500 focus:outline-hidden"
@@ -488,18 +579,25 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
                         key={c.id}
                         type="button"
                         onClick={() => handleSelectCustomer(c)}
-                        className="w-full text-left p-2 rounded-lg hover:bg-slate-900 text-xs transition-colors flex items-center justify-between"
+                        className="w-full text-left p-2 rounded-lg hover:bg-slate-900 text-xs transition-colors flex items-center justify-between gap-2"
                       >
-                        <div>
-                          <div className="font-semibold text-white">{c.name}</div>
-                          <div className="text-[10px] text-slate-400">{c.phone} • {c.district || c.taluko}</div>
+                        <div className="min-w-0">
+                          <div className="font-semibold text-white flex items-center gap-1.5 truncate">
+                            {c.account_number && (
+                              <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono text-[10px]">
+                                #{c.account_number}
+                              </span>
+                            )}
+                            <span className="truncate">{c.name}</span>
+                          </div>
+                          <div className="text-[10px] text-slate-400">{c.phone || 'No phone'} • {c.district || c.taluko || '-'}</div>
                         </div>
-                        {selectedCustomerId === c.id && <Check className="w-4 h-4 text-amber-400" />}
+                        {selectedCustomerId === c.id && <Check className="w-4 h-4 text-amber-400 shrink-0" />}
                       </button>
                     ))}
                     {filteredCustomers.length === 0 && (
                       <div className="p-3 text-center text-xs text-slate-500">
-                        No customer matches found.
+                        No party matches found.
                       </div>
                     )}
                   </div>
@@ -509,23 +607,51 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
           </div>
 
           {selectedCustomerId && (
-            <div className="p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl flex items-center justify-between text-xs text-amber-300">
-              <span>Selected registered customer: <strong>{customerName}</strong></span>
+            <div className="p-2.5 bg-emerald-500/10 border border-emerald-500/25 rounded-xl flex items-center justify-between text-xs text-emerald-300 flex-wrap gap-2">
+              <span className="flex items-center gap-1.5">
+                <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                Automatically linked to Party Account Book:
+                {customerAccountNumber && (
+                  <strong className="px-1.5 py-0.5 rounded bg-emerald-500/20 font-mono text-emerald-200">
+                    A/C #{customerAccountNumber}
+                  </strong>
+                )}
+                <strong>{customerName}</strong>
+              </span>
               <button
                 type="button"
                 onClick={handleClearCustomer}
                 className="text-[11px] underline hover:text-white"
               >
-                Clear &amp; Enter New Details
+                Clear &amp; Enter New Party
               </button>
             </div>
           )}
 
-          {/* Customer Inputs */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
+          {/* Party Account Number + Name + Phone */}
+          <div className="grid grid-cols-1 sm:grid-cols-12 gap-4">
+            <div className="sm:col-span-3">
+              <label className="block text-xs font-semibold text-amber-300 uppercase tracking-wider mb-1.5">
+                Party Account No.
+              </label>
+              <div className="relative">
+                <Hash className="w-4 h-4 text-amber-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                <input
+                  type="text"
+                  value={customerAccountNumber}
+                  onChange={(e) => handleAccountNumberChange(e.target.value)}
+                  placeholder="e.g. 101"
+                  className="w-full pl-9 pr-3 py-2.5 bg-slate-950/80 border border-amber-500/40 rounded-xl text-sm font-mono font-bold text-amber-300 placeholder-slate-500 focus:outline-hidden focus:border-amber-400"
+                />
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1">
+                Type A/C No. to auto-link party &amp; book
+              </p>
+            </div>
+
+            <div className="sm:col-span-5">
               <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Customer / Contractor Name <span className="text-rose-400">*</span>
+                Party / Customer Name <span className="text-rose-400">*</span>
               </label>
               <input
                 type="text"
@@ -540,22 +666,19 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
               />
             </div>
 
-            <div>
+            <div className="sm:col-span-4">
               <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Phone Number <span className="text-rose-400">*</span>
+                Phone Number {!customerAccountNumber.trim() && !selectedCustomerId && <span className="text-rose-400">*</span>}
               </label>
               <div className="relative">
                 <Phone className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                 <input
                   type="tel"
                   value={customerPhone}
-                  onChange={(e) => {
-                    setCustomerPhone(e.target.value);
-                    if (selectedCustomerId) setSelectedCustomerId('');
-                  }}
-                  placeholder="98250 12345"
+                  onChange={(e) => setCustomerPhone(e.target.value)}
+                  placeholder="Optional if A/C No. entered"
                   className="w-full pl-10 pr-3.5 py-2.5 bg-slate-950/80 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-hidden focus:border-amber-500"
-                  required
+                  required={!customerAccountNumber.trim() && !selectedCustomerId}
                 />
               </div>
             </div>
@@ -610,7 +733,7 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
                 onChange={(e) => setSaveCustomer(e.target.checked)}
                 className="rounded border-slate-700 text-amber-600 focus:ring-amber-500"
               />
-              <span>Save this customer into directory for future billing</span>
+              <span>Save this party (with Account Number) into directory for future automatic linkage</span>
             </label>
           )}
         </div>
@@ -644,14 +767,12 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
               return (
                 <div
                   key={idx}
-                  className={`p-3.5 rounded-xl border transition-all ${
-                    isOverStock
+                  className={`p-3.5 rounded-xl border transition-all ${isOverStock
                       ? 'bg-rose-950/20 border-rose-500/40'
                       : 'bg-slate-950/70 border-slate-800'
-                  }`}
+                    }`}
                 >
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
-                    {/* Product Selector */}
                     <div className="sm:col-span-3">
                       <label className="text-[10px] text-slate-400 uppercase font-semibold block mb-1">
                         Product
@@ -669,7 +790,6 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
                       </select>
                     </div>
 
-                    {/* Variant Selector */}
                     <div className="sm:col-span-3">
                       <label className="text-[10px] text-slate-400 uppercase font-semibold block mb-1">
                         Variant / Size / Unit
@@ -687,15 +807,13 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
                       </select>
                     </div>
 
-                    {/* Quantity */}
                     <div className="sm:col-span-2">
                       <div className="flex justify-between items-center mb-1">
                         <label className="text-[10px] text-slate-400 uppercase font-semibold">
                           Qty ({item.unit})
                         </label>
-                        <span className={`text-[10px] font-bold ${
-                          item.availableStock <= 10 ? 'text-amber-400' : 'text-slate-400'
-                        }`}>
+                        <span className={`text-[10px] font-bold ${item.availableStock <= 10 ? 'text-amber-400' : 'text-slate-400'
+                          }`}>
                           Avail: {item.availableStock}
                         </span>
                       </div>
@@ -705,16 +823,14 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
                         min="1"
                         value={item.quantity}
                         onChange={(e) => handleQtyChange(idx, e.target.value)}
-                        className={`w-full px-2.5 py-2 bg-slate-900 border rounded-xl text-xs font-bold text-white focus:outline-hidden ${
-                          isOverStock
+                        className={`w-full px-2.5 py-2 bg-slate-900 border rounded-xl text-xs font-bold text-white focus:outline-hidden ${isOverStock
                             ? 'border-rose-500 focus:border-rose-400'
                             : 'border-slate-700 focus:border-amber-500'
-                        }`}
+                          }`}
                         required
                       />
                     </div>
 
-                    {/* Rate / Price */}
                     <div className="sm:col-span-2">
                       <label className="text-[10px] text-slate-400 uppercase font-semibold block mb-1">
                         Rate (₹ / {item.unit})
@@ -735,7 +851,6 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
                       </div>
                     </div>
 
-                    {/* Item Total */}
                     <div className="sm:col-span-1 text-right">
                       <label className="text-[10px] text-slate-400 uppercase font-semibold block mb-1">
                         Item Total
@@ -745,7 +860,6 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
                       </span>
                     </div>
 
-                    {/* Remove Action */}
                     <div className="sm:col-span-1 flex justify-end items-center sm:pt-4">
                       <button
                         type="button"
@@ -772,28 +886,167 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
             })}
           </div>
 
-          {/* Subtotal Banner */}
-          <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 flex justify-between items-center text-sm">
+          <div className="p-3.5 bg-slate-950 rounded-xl border border-slate-800 flex justify-between items-center text-sm">
             <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              Total Materials Billed Amount:
+              Materials Subtotal:
             </span>
-            <span className="text-xl font-black text-white">
-              ₹{totalAmount.toLocaleString('en-IN')}
+            <span className="text-base font-bold text-white">
+              ₹{subtotal.toLocaleString('en-IN')}
             </span>
           </div>
         </div>
 
-        {/* 3. Payment & Reminder Section */}
+        {/* 3. Labor Charges (Majuri) & Net Discount Section */}
+        <div className="p-5 bg-slate-900 border border-slate-800 rounded-2xl shadow-lg space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-800">
+            <div className="flex items-center gap-2">
+              <Hammer className="w-4 h-4 text-amber-400" />
+              <h3 className="text-sm font-bold text-white uppercase tracking-wider">
+                3. Labor Charges (Majuri) &amp; Net Discount
+              </h3>
+            </div>
+            <button
+              type="button"
+              onClick={handleAddLaborRow}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 text-xs font-semibold transition-colors self-start sm:self-auto"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Add Labor Charge (Majuri)</span>
+            </button>
+          </div>
+
+          {laborItems.length === 0 ? (
+            <div className="p-3.5 bg-slate-950/50 border border-dashed border-slate-800 rounded-xl text-xs text-slate-400 flex items-center justify-between">
+              <span>No labor charges (Majuri) added to this bill.</span>
+              <button
+                type="button"
+                onClick={handleAddLaborRow}
+                className="text-amber-400 hover:text-amber-300 font-semibold underline"
+              >
+                + Add Majuri Line Item
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {laborItems.map((l, idx) => (
+                <div key={l.id} className="p-3 bg-slate-950/70 border border-slate-800 rounded-xl grid grid-cols-1 sm:grid-cols-12 gap-3 items-center">
+                  <div className="sm:col-span-5">
+                    <label className="text-[10px] text-slate-400 uppercase font-semibold block mb-1">
+                      Labor / Majuri Particulars
+                    </label>
+                    <input
+                      type="text"
+                      value={l.description}
+                      onChange={(e) => handleLaborChange(idx, 'description', e.target.value)}
+                      placeholder="e.g. Loading / Unloading / Hamali"
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-medium text-white focus:outline-hidden focus:border-amber-500"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="text-[10px] text-slate-400 uppercase font-semibold block mb-1">
+                      Qty / Trips
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={l.quantity}
+                      onChange={(e) => handleLaborChange(idx, 'quantity', e.target.value)}
+                      className="w-full px-2.5 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-hidden focus:border-amber-500"
+                    />
+                  </div>
+                  <div className="sm:col-span-2">
+                    <label className="text-[10px] text-slate-400 uppercase font-semibold block mb-1">
+                      Rate (₹)
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0"
+                      value={l.rate}
+                      onChange={(e) => handleLaborChange(idx, 'rate', e.target.value)}
+                      className="w-full px-2.5 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs font-bold text-white focus:outline-hidden focus:border-amber-500"
+                    />
+                  </div>
+                  <div className="sm:col-span-2 text-right">
+                    <label className="text-[10px] text-slate-400 uppercase font-semibold block mb-1">
+                      Labor Total
+                    </label>
+                    <span className="text-xs font-bold text-amber-300 block py-2">
+                      +₹{l.amount.toLocaleString('en-IN')}
+                    </span>
+                  </div>
+                  <div className="sm:col-span-1 flex justify-end sm:pt-4">
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveLaborRow(idx)}
+                      className="p-2 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors"
+                      title="Remove labor row"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Net Discount & Final Bill Total Breakdown */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+            <div className="p-4 bg-slate-950/70 rounded-xl border border-slate-800 space-y-2">
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-emerald-300 uppercase tracking-wider">
+                <Tag className="w-3.5 h-3.5" />
+                Manual Net Discount (₹)
+              </label>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 pl-3 flex items-center text-sm text-slate-400">₹</span>
+                <input
+                  type="number"
+                  step="any"
+                  min="0"
+                  max={grossBeforeDiscount}
+                  value={discountAmount}
+                  onChange={(e) => setDiscountAmount(e.target.value)}
+                  placeholder="0 (Enter manual discount amount)"
+                  className="w-full pl-8 pr-3.5 py-2.5 bg-slate-900 border border-slate-700 rounded-xl text-sm font-bold text-emerald-400 placeholder-slate-500 focus:outline-hidden focus:border-emerald-500"
+                />
+              </div>
+              <p className="text-[11px] text-slate-400">
+                Directly deducted from the final bill amount for this party.
+              </p>
+            </div>
+
+            <div className="p-4 bg-slate-950 rounded-xl border border-slate-800 space-y-1.5 text-xs">
+              <div className="flex justify-between text-slate-300">
+                <span>Materials Subtotal:</span>
+                <span className="font-semibold">₹{subtotal.toLocaleString('en-IN')}</span>
+              </div>
+              <div className="flex justify-between text-amber-300">
+                <span>+ Labor Charges (Majuri):</span>
+                <span className="font-semibold">+₹{laborTotal.toLocaleString('en-IN')}</span>
+              </div>
+              <div className="flex justify-between text-emerald-400">
+                <span>- Net Discount:</span>
+                <span className="font-semibold">-₹{parsedDiscount.toLocaleString('en-IN')}</span>
+              </div>
+              <div className="flex justify-between items-center pt-2 border-t border-slate-800 text-sm">
+                <span className="font-bold text-white uppercase tracking-wider">Final Net Bill Total:</span>
+                <span className="text-xl font-black text-white">₹{totalAmount.toLocaleString('en-IN')}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* 4. Payment & Manual Reminder Section */}
         <div className="p-5 bg-slate-900 border border-slate-800 rounded-2xl shadow-lg space-y-4">
           <div className="flex items-center gap-2 pb-3 border-b border-slate-800">
             <CreditCard className="w-4 h-4 text-amber-400" />
             <h3 className="text-sm font-bold text-white uppercase tracking-wider">
-              3. Payment &amp; Credit Terms
+              4. Payment &amp; Custom Due Reminder
             </h3>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {/* Status */}
             <div>
               <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
                 Payment Status <span className="text-rose-400">*</span>
@@ -809,7 +1062,6 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
               </select>
             </div>
 
-            {/* Paid Amount */}
             {paymentStatus === 'Partial Paid' && (
               <div>
                 <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
@@ -832,7 +1084,6 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
               </div>
             )}
 
-            {/* Payment Mode */}
             {paymentStatus !== 'Pending' && (
               <div>
                 <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
@@ -850,32 +1101,73 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
                 </select>
               </div>
             )}
+          </div>
 
-            {/* Reminder Date */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Payment Reminder Period
-              </label>
-              <select
-                value={reminderType}
-                onChange={(e) => setReminderType(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-950/80 border border-slate-700/80 rounded-xl text-sm text-white focus:outline-hidden focus:border-amber-500"
-              >
-                <option value="No Reminder">No Reminder</option>
-                <option value="7 Days">7 Days</option>
-                <option value="2 Weeks">2 Weeks</option>
-                <option value="1 Month">1 Month</option>
-                <option value="3 Months">3 Months</option>
-                <option value="6 Months">6 Months</option>
-                <option value="1 Year">1 Year</option>
-              </select>
+          {/* Manual Date & Time Reminder Picker (No preset intervals) */}
+          <div className="p-4 bg-slate-950/60 border border-slate-800 rounded-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-xs font-bold text-amber-300 uppercase tracking-wider">
+                <Clock className="w-3.5 h-3.5" />
+                <span>Manual Payment Reminder Date &amp; Time (Optional)</span>
+              </div>
+              {(reminderDate || reminderTime || reminderNote) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setReminderDate('');
+                    setReminderTime('');
+                    setReminderNote('');
+                  }}
+                  className="text-[11px] text-slate-400 hover:text-white underline"
+                >
+                  Clear Reminder
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                  Exact Reminder Date
+                </label>
+                <input
+                  type="date"
+                  value={reminderDate}
+                  onChange={(e) => setReminderDate(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-hidden focus:border-amber-500"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                  Reminder Time
+                </label>
+                <input
+                  type="time"
+                  value={reminderTime}
+                  onChange={(e) => setReminderTime(e.target.value)}
+                  disabled={!reminderDate}
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white focus:outline-hidden focus:border-amber-500 disabled:opacity-40"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-400 mb-1">
+                  Reminder Note
+                </label>
+                <input
+                  type="text"
+                  value={reminderNote}
+                  onChange={(e) => setReminderNote(e.target.value)}
+                  placeholder="e.g. Call before 5 PM"
+                  className="w-full px-3 py-2 bg-slate-900 border border-slate-700 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-amber-500"
+                />
+              </div>
             </div>
           </div>
 
           {/* Payment Summary Box */}
           <div className="p-4 bg-slate-950/80 rounded-xl border border-slate-800 grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
             <div>
-              <span className="text-[10px] text-slate-400 uppercase font-semibold block">Total Bill Amount</span>
+              <span className="text-[10px] text-slate-400 uppercase font-semibold block">Total Net Bill Amount</span>
               <span className="text-base font-bold text-white">₹{totalAmount.toLocaleString('en-IN')}</span>
             </div>
             <div>
@@ -932,6 +1224,7 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
           billData={{
             bill_number: billNumber,
             bill_date: billDate,
+            customer_account_number: customerAccountNumber.trim() || undefined,
             customer_name: customerName,
             customer_phone: customerPhone,
             customer_address: customerAddress,
@@ -952,13 +1245,19 @@ export const CreateBill: React.FC<CreateBillProps> = ({ onNavigate, initialCusto
                 total: it.total,
               };
             }),
+            labor_items: formattedLaborItems,
+            labor_charges: laborTotal,
+            discount_amount: parsedDiscount,
             subtotal,
             total_amount: totalAmount,
             payment_status: paymentStatus,
             paid_amount: calculatedPaid,
             pending_amount: pendingAmount,
             payment_mode: paymentMode,
-            reminder_type: reminderType,
+            reminder_type: reminderDate ? 'Custom' : 'No Reminder',
+            reminder_date: reminderDate || null,
+            reminder_time: reminderDate && reminderTime ? reminderTime : null,
+            reminder_note: reminderNote.trim() || undefined,
             notes,
           }}
         />

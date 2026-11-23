@@ -165,7 +165,7 @@ export const Bills: React.FC<BillsProps> = ({ onNavigate }) => {
             Billing &amp; Invoices Directory
           </h2>
           <p className="text-xs text-slate-400 mt-1">
-            Browse, filter, view tax invoice layout, print, share, and track credit settlements.
+            Browse, filter, view Cash Memo / bill layout, print, share, and track credit settlements.
           </p>
         </div>
 
@@ -200,7 +200,7 @@ export const Bills: React.FC<BillsProps> = ({ onNavigate }) => {
                 setSearch(e.target.value);
                 setPage(1);
               }}
-              placeholder="Search bill no, customer, phone..."
+              placeholder="Search bill no, A/C No., customer, phone..."
               className="w-full pl-9 pr-3 py-2 bg-slate-950/80 border border-slate-700/80 rounded-xl text-xs text-white placeholder-slate-500 focus:outline-hidden focus:border-amber-500"
             />
           </div>
@@ -345,17 +345,22 @@ export const Bills: React.FC<BillsProps> = ({ onNavigate }) => {
                       {bill.reminder_date && (
                         <span className="block text-[10px] text-amber-400 flex items-center gap-1 font-medium">
                           <Clock className="w-2.5 h-2.5" />
-                          Due: {bill.reminder_date}
+                          Due: {bill.reminder_date}{bill.reminder_time ? ` ${bill.reminder_time}` : ''}
                         </span>
                       )}
                     </td>
 
                     {/* Customer */}
                     <td className="py-3 px-4">
-                      <div className="font-semibold text-white truncate max-w-xs">
-                        {bill.customer_name}
+                      <div className="font-semibold text-white truncate max-w-xs flex items-center gap-1.5">
+                        {bill.customer_account_number && (
+                          <span className="px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-300 font-mono text-[10px] shrink-0">
+                            #{bill.customer_account_number}
+                          </span>
+                        )}
+                        <span className="truncate">{bill.customer_name}</span>
                       </div>
-                      <div className="text-[11px] text-slate-400">{bill.customer_phone}</div>
+                      <div className="text-[11px] text-slate-400">{bill.customer_phone || '-'}</div>
                     </td>
 
                     {/* Total Amount */}
@@ -379,10 +384,10 @@ export const Bills: React.FC<BillsProps> = ({ onNavigate }) => {
                     {/* Status Badge */}
                     <td className="py-3 px-4 text-center whitespace-nowrap">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-semibold ${bill.payment_status === 'Full Paid'
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                        : bill.payment_status === 'Partial Paid'
-                          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                          : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                          : bill.payment_status === 'Partial Paid'
+                            ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                            : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
                         }`}>
                         {bill.payment_status}
                       </span>
@@ -403,7 +408,7 @@ export const Bills: React.FC<BillsProps> = ({ onNavigate }) => {
                         <button
                           onClick={() => onNavigate('bill-detail', bill.id)}
                           className="p-1.5 text-slate-400 hover:text-white rounded-lg hover:bg-slate-800 transition-colors"
-                          title="View / Print Tax Invoice"
+                          title="View / Print Bill"
                         >
                           <Eye className="w-3.5 h-3.5" />
                         </button>
@@ -411,7 +416,7 @@ export const Bills: React.FC<BillsProps> = ({ onNavigate }) => {
                           onClick={() => handleShareBill(bill)}
                           disabled={sharingBillId === bill.id}
                           className="p-1.5 text-slate-400 hover:text-amber-400 rounded-lg hover:bg-slate-800 transition-colors disabled:opacity-50"
-                          title="Share Tax Invoice as PDF"
+                          title="Share Bill as PDF"
                         >
                           {sharingBillId === bill.id ? (
                             <Loader2 className="w-3.5 h-3.5 text-amber-400 animate-spin" />

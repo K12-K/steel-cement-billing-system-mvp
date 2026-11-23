@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, UserPlus, Phone, MapPin, Building, FileText } from 'lucide-react';
+import { X, UserPlus, Phone, MapPin, Hash } from 'lucide-react';
 import { Customer } from '../types';
 import { api } from '../services/api';
 import { useToast } from '../context/ToastContext';
@@ -18,6 +18,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
   onSuccess,
 }) => {
   const { showToast } = useToast();
+  const [accountNumber, setAccountNumber] = useState<string>('');
   const [name, setName] = useState<string>('');
   const [phone, setPhone] = useState<string>('');
   const [address, setAddress] = useState<string>('');
@@ -30,14 +31,16 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
 
   useEffect(() => {
     if (customerToEdit) {
+      setAccountNumber(customerToEdit.account_number || '');
       setName(customerToEdit.name);
-      setPhone(customerToEdit.phone);
+      setPhone(customerToEdit.phone || '');
       setAddress(customerToEdit.address || '');
       setTaluko(customerToEdit.taluko || '');
       setDistrict(customerToEdit.district || '');
       setState(customerToEdit.state || 'Gujarat');
       setGstNumber(customerToEdit.gst_number || '');
     } else {
+      setAccountNumber('');
       setName('');
       setPhone('');
       setAddress('');
@@ -55,34 +58,29 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
     e.preventDefault();
     setError(null);
 
-    if (!name.trim() || !phone.trim()) {
-      setError('Customer name and phone number are required.');
+    if (!name.trim() || (!phone.trim() && !accountNumber.trim())) {
+      setError('Customer name and either Party Account Number or Phone Number are required.');
       return;
     }
 
     setIsSubmitting(true);
     try {
+      const payload = {
+        account_number: accountNumber.trim(),
+        name: name.trim(),
+        phone: phone.trim(),
+        address: address.trim(),
+        taluko: taluko.trim(),
+        district: district.trim(),
+        state: state.trim(),
+        gst_number: gstNumber.trim(),
+      };
+
       if (customerToEdit) {
-        const res = await api.customers.update(customerToEdit.id, {
-          name: name.trim(),
-          phone: phone.trim(),
-          address: address.trim(),
-          taluko: taluko.trim(),
-          district: district.trim(),
-          state: state.trim(),
-          gst_number: gstNumber.trim(),
-        });
+        const res = await api.customers.update(customerToEdit.id, payload);
         showToast(res.message, 'success');
       } else {
-        const res = await api.customers.create({
-          name: name.trim(),
-          phone: phone.trim(),
-          address: address.trim(),
-          taluko: taluko.trim(),
-          district: district.trim(),
-          state: state.trim(),
-          gst_number: gstNumber.trim(),
-        });
+        const res = await api.customers.create(payload);
         showToast(res.message, 'success');
       }
 
@@ -98,7 +96,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs">
-      <div 
+      <div
         className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden relative animate-in fade-in zoom-in-95 duration-150"
         role="dialog"
       >
@@ -112,7 +110,7 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                 {customerToEdit ? 'Edit Customer' : 'Add New Customer'}
               </h2>
               <p className="text-xs text-slate-400">
-                Maintain contractor, builder, or site customer profile.
+                Assign a unique Party Account Number for quick automatic bill linkage.
               </p>
             </div>
           </div>
@@ -131,8 +129,27 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             <div>
+              <label className="block text-xs font-semibold text-amber-300 uppercase tracking-wider mb-1.5">
+                Party A/C No.
+              </label>
+              <div className="relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-amber-400">
+                  <Hash className="w-4 h-4" />
+                </div>
+                <input
+                  type="text"
+                  value={accountNumber}
+                  onChange={(e) => setAccountNumber(e.target.value)}
+                  placeholder="e.g. 105"
+                  className="w-full pl-9 pr-3 py-2.5 bg-slate-950/80 border border-amber-500/40 rounded-xl text-sm font-mono font-bold text-amber-300 placeholder-slate-500 focus:outline-hidden focus:border-amber-400"
+                  autoFocus
+                />
+              </div>
+            </div>
+
+            <div className="sm:col-span-2">
               <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
                 Customer / Firm Name <span className="text-rose-400">*</span>
               </label>
@@ -143,27 +160,27 @@ export const CustomerFormModal: React.FC<CustomerFormModalProps> = ({
                 placeholder="e.g. Ramesh Patel (Patel Developers)"
                 className="w-full px-3.5 py-2.5 bg-slate-950/80 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-hidden focus:border-amber-500"
                 required
-                autoFocus
               />
             </div>
+          </div>
 
-            <div>
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                Phone Number <span className="text-rose-400">*</span>
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                  <Phone className="w-4 h-4" />
-                </div>
-                <input
-                  type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="98250 12345"
-                  className="w-full pl-9 pr-3.5 py-2.5 bg-slate-950/80 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-hidden focus:border-amber-500"
-                  required
-                />
+          <div>
+            <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+              Phone Number {!accountNumber.trim() && <span className="text-rose-400">*</span>}
+              {accountNumber.trim() && <span className="text-[10px] text-slate-400 normal-case font-normal ml-1">(Optional when A/C No. is set)</span>}
+            </label>
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                <Phone className="w-4 h-4" />
               </div>
+              <input
+                type="tel"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="98250 12345"
+                className="w-full pl-9 pr-3.5 py-2.5 bg-slate-950/80 border border-slate-700/80 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-hidden focus:border-amber-500"
+                required={!accountNumber.trim()}
+              />
             </div>
           </div>
 

@@ -37,6 +37,7 @@ export interface Product {
 
 export interface Customer {
   id: string;
+  account_number?: string;
   name: string;
   phone: string;
   address: string;
@@ -67,10 +68,19 @@ export interface BillItem {
   total: number;
 }
 
+export interface LaborChargeItem {
+  id: string;
+  description: string;
+  quantity: number;
+  rate: number;
+  amount: number;
+}
+
 export interface Bill {
   id: string;
   bill_number: string;
   customer_id: string;
+  customer_account_number?: string;
   customer_name: string;
   customer_phone: string;
   customer_address: string;
@@ -79,12 +89,17 @@ export interface Bill {
   customer_state: string;
   bill_date: string;
   subtotal: number;
+  labor_items?: LaborChargeItem[];
+  labor_charges?: number;
+  discount_amount?: number;
   total_amount: number;
   paid_amount: number;
   pending_amount: number;
   payment_status: 'Pending' | 'Partial Paid' | 'Full Paid';
-  reminder_type: 'No Reminder' | '7 Days' | '2 Weeks' | '1 Month' | '3 Months' | '6 Months' | '1 Year';
+  reminder_type: string;
   reminder_date: string | null;
+  reminder_time?: string | null;
+  reminder_note?: string;
   notes?: string;
   status: 'confirmed' | 'draft' | 'cancelled';
   items?: BillItem[];
@@ -137,6 +152,9 @@ export interface BusinessSettings {
   company_name: string;
   tagline: string;
   gstin: string;
+  show_gstin_on_bills?: boolean;
+  bill_header_title?: string;
+  show_bank_details_on_bills?: boolean;
   phone: string;
   email: string;
   address: string;
@@ -167,4 +185,55 @@ export interface DashboardStats {
   recent_payments: Payment[];
   top_pending_bills: Bill[];
   low_stock_variants: (ProductVariant & { product_name: string; category: string })[];
+}
+
+export interface RozmelEntry {
+  id: string;
+  entry_date: string;
+  entry_time?: string;
+  type: 'in' | 'out';
+  amount: number;
+  particulars: string;
+  category?: string;
+  notes?: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RozmelSummary {
+  filtered_in: number;
+  filtered_out: number;
+  filtered_net: number;
+  today_in: number;
+  today_out: number;
+  today_net: number;
+  overall_in: number;
+  overall_out: number;
+  overall_balance: number;
+  total_entries: number;
+}
+
+export interface RozmelDailyBreakdown {
+  date: string;
+  cash_in: number;
+  cash_out: number;
+  net: number;
+  count: number;
+}
+
+export interface DueReminder {
+  id: string;
+  party_name: string;
+  party_account_number?: string;
+  party_phone?: string;
+  title: string;
+  due_amount: number;
+  reminder_date: string | null;
+  reminder_time: string | null;
+  notes?: string;
+  status: 'pending' | 'settled';
+  created_by: string;
+  created_at: string;
+  updated_at: string;
 }

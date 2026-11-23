@@ -23,7 +23,8 @@ customersRouter.get('/', (req: AuthRequest, res: Response) => {
     const term = search.toLowerCase().trim();
     customers = customers.filter(c => 
       c.name.toLowerCase().includes(term) ||
-      c.phone.toLowerCase().includes(term) ||
+      (c.account_number && c.account_number.toLowerCase().includes(term)) ||
+      (c.phone && c.phone.toLowerCase().includes(term)) ||
       c.address.toLowerCase().includes(term) ||
       c.taluko.toLowerCase().includes(term) ||
       c.district.toLowerCase().includes(term)
@@ -51,6 +52,29 @@ customersRouter.get('/', (req: AuthRequest, res: Response) => {
   return res.json({
     success: true,
     customers: enriched,
+  });
+});
+
+// Lookup customer by exact Party Account Number
+customersRouter.get('/by-account/:accountNumber', (req: AuthRequest, res: Response) => {
+  const { accountNumber } = req.params;
+  const db = getDatabase();
+  const accTerm = (accountNumber || '').trim().toLowerCase();
+  if (!accTerm) {
+    return res.status(400).json({ success: false, message: 'Account number is required.' });
+  }
+
+  const customer = db.customers.find(
+    c => !c.deleted_at && c.account_number && c.account_number.trim().toLowerCase() === accTerm
+  );
+
+  if (!customer) {
+    return res.status(404).json({ success: false, message: 'No party found for this account number.' });
+  }
+
+  return res.json({
+    success: true,
+    customer,
   });
 });
 
@@ -92,20 +116,38 @@ customersRouter.get('/:id', (req: AuthRequest, res: Response) => {
 
 // Create customer
 customersRouter.post('/', (req: AuthRequest, res: Response) => {
-  const { name, phone, address, taluko, district, state, gst_number } = req.body;
+  const { account_number, name, phone, address, taluko, district, state, gst_number } = req.body;
 
-  if (!name || !phone) {
-    return res.status(400).json({ success: false, message: 'Customer name and phone number are required.' });
+  if (!name || (!phone && !account_number)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Customer name and either Party Account Number or Phone Number are required.',
+    });
   }
 
   const db = getDatabase();
+  const cleanAcc = account_number ? String(account_number).trim() : '';
+
+  if (cleanAcc) {
+    const duplicate = db.customers.find(
+      c => !c.deleted_at && c.account_number && c.account_number.trim().toLowerCase() === cleanAcc.toLowerCase()
+    );
+    if (duplicate) {
+      return res.status(400).json({
+        success: false,
+        message: `Party Account Number "${cleanAcc}" is already assigned to ${duplicate.name}.`,
+      });
+    }
+  }
+
   const now = new Date().toISOString();
   const customerId = `cust_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
 
   const newCustomer: Customer = {
     id: customerId,
+    account_number: cleanAcc || undefined,
     name: name.trim(),
-    phone: phone.trim(),
+    phone: phone ? phone.trim() : '',
     address: address ? address.trim() : '',
     taluko: taluko ? taluko.trim() : '',
     district: district ? district.trim() : '',
@@ -129,7 +171,7 @@ customersRouter.post('/', (req: AuthRequest, res: Response) => {
 // Update customer
 customersRouter.put('/:id', (req: AuthRequest, res: Response) => {
   const { id } = req.params;
-  const { name, phone, address, taluko, district, state, gst_number } = req.body;
+  const { account_number, name, phone, address, taluko, district, state, gst_number } = req.body;
 
   const db = getDatabase();
   const customer = db.customers.find(c => c.id === id && !c.deleted_at);
@@ -137,8 +179,30 @@ customersRouter.put('/:id', (req: AuthRequest, res: Response) => {
     return res.status(404).json({ success: false, message: 'Customer not found.' });
   }
 
+  if (account_number !== undefined) {
+    const cleanAcc = String(account_number).trim();
+    if (cleanAcc) {
+      const duplicate = db.customers.find(
+        c =>
+          c.id !== id &&
+          !c.deleted_at &&
+          c.account_number &&
+          c.account_number.trim().toLowerCase() === cleanAcc.toLowerCase()
+      );
+      if (duplicate) {
+        return res.status(400).json({
+          success: false,
+          message: `Party Account Number "${cleanAcc}" is already assigned to ${duplicate.name}.`,
+        });
+      }
+      customer.account_number = cleanAcc;
+    } else {
+      customer.account_number = undefined;
+    }
+  }
+
   if (name) customer.name = name.trim();
-  if (phone) customer.phone = phone.trim();
+  if (phone !== undefined) customer.phone = phone.trim();
   if (address !== undefined) customer.address = address.trim();
   if (taluko !== undefined) customer.taluko = taluko.trim();
   if (district !== undefined) customer.district = district.trim();
@@ -146,11 +210,12 @@ customersRouter.put('/:id', (req: AuthRequest, res: Response) => {
   if (gst_number !== undefined) customer.gst_number = gst_number.trim();
   customer.updated_at = new Date().toISOString();
 
-  // Also sync customer name/phone in active bills for consistent presentation
+  // Also sync customer account number / name / phone in active bills for consistent presentation
   for (const b of db.bills) {
     if (b.customer_id === id) {
       b.customer_name = customer.name;
       b.customer_phone = customer.phone;
+      b.customer_account_number = customer.account_number;
     }
   }
 

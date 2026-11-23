@@ -28,7 +28,7 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs">
-      <div 
+      <div
         className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 relative animate-in fade-in zoom-in-95 duration-150"
         role="dialog"
       >
@@ -64,11 +64,10 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
             type="button"
             onClick={onConfirm}
             disabled={isLoading}
-            className={`px-4 py-2 text-sm font-medium text-white rounded-xl transition-colors shadow-lg disabled:opacity-50 flex items-center gap-2 ${
-              isDestructive
+            className={`px-4 py-2 text-sm font-medium text-white rounded-xl transition-colors shadow-lg disabled:opacity-50 flex items-center gap-2 ${isDestructive
                 ? 'bg-rose-600 hover:bg-rose-500 shadow-rose-900/30'
                 : 'bg-amber-600 hover:bg-amber-500 shadow-amber-900/30'
-            }`}
+              }`}
           >
             {isLoading ? (
               <>

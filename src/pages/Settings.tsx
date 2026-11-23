@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Settings as SettingsIcon, 
-  Building2, 
-  CreditCard, 
-  Lock, 
-  Save, 
-  CheckCircle2, 
-  AlertCircle, 
-  User, 
-  ShieldCheck 
+import {
+  Settings as SettingsIcon,
+  Building2,
+  CreditCard,
+  Lock,
+  Save,
+  CheckCircle2,
+  AlertCircle,
+  User,
+  ShieldCheck
 } from 'lucide-react';
 import { BusinessSettings } from '../types';
 import { api } from '../services/api';
@@ -152,14 +152,92 @@ export const Settings: React.FC = () => {
 
                 <div>
                   <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
-                    GSTIN Number
+                    GSTIN Number (Profile Record)
                   </label>
                   <input
                     type="text"
                     value={settings.gstin}
                     onChange={(e) => setSettings({ ...settings, gstin: e.target.value.toUpperCase() })}
+                    placeholder="Optional (hidden on bills unless enabled below)"
                     className="w-full px-3.5 py-2.5 bg-slate-950/80 border border-slate-700/80 rounded-xl text-sm font-mono text-amber-400 focus:outline-hidden focus:border-amber-500"
                   />
+                </div>
+              </div>
+
+              {/* Cash Memo & GSTIN Display Controls */}
+              <div className="p-4 bg-slate-950/70 border border-amber-500/25 rounded-xl space-y-3.5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-bold text-white">Show GSTIN on Bills &amp; Exported PDFs</div>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      Keep OFF for Cash Memo bills so your GSTIN is never printed or shared on any bill.
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSettings({
+                        ...settings,
+                        show_gstin_on_bills: !(settings.show_gstin_on_bills ?? false),
+                      })
+                    }
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition-all shrink-0 ${settings.show_gstin_on_bills
+                        ? 'bg-emerald-600/20 border-emerald-500 text-emerald-300'
+                        : 'bg-slate-900 border-slate-700 text-slate-300 hover:border-amber-500/50'
+                      }`}
+                  >
+                    {settings.show_gstin_on_bills ? 'ON — GSTIN Visible on Bills' : 'OFF — GSTIN Hidden (Cash Memo)'}
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-800/80">
+                  <div>
+                    <label className="block text-[11px] font-semibold text-slate-300 uppercase tracking-wider mb-1">
+                      Bill Header Title
+                    </label>
+                    <select
+                      value={
+                        ['CASH MEMO', 'CASH MEMO / રોકડ મેમો', 'TAX INVOICE', 'ESTIMATE / BILL'].includes(
+                          settings.bill_header_title || 'CASH MEMO'
+                        )
+                          ? settings.bill_header_title || 'CASH MEMO'
+                          : 'CUSTOM'
+                      }
+                      onChange={(e) => {
+                        if (e.target.value !== 'CUSTOM') {
+                          setSettings({ ...settings, bill_header_title: e.target.value });
+                        }
+                      }}
+                      className="w-full px-3 py-2 bg-slate-900 border border-slate-700/80 rounded-xl text-xs font-semibold text-white focus:outline-hidden focus:border-amber-500"
+                    >
+                      <option value="CASH MEMO">CASH MEMO (Recommended)</option>
+                      <option value="CASH MEMO / રોકડ મેમો">CASH MEMO / રોકડ મેમો (Screen Bilingual)</option>
+                      <option value="TAX INVOICE">TAX INVOICE</option>
+                      <option value="ESTIMATE / BILL">ESTIMATE / BILL</option>
+                    </select>
+                  </div>
+
+                  <div className="flex items-center justify-between gap-3 p-3 bg-slate-900/80 border border-slate-800 rounded-xl">
+                    <div>
+                      <div className="text-[11px] font-bold text-slate-200">Show Bank Details on Bills</div>
+                      <div className="text-[10px] text-slate-400">Include Bank A/C &amp; IFSC box</div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setSettings({
+                          ...settings,
+                          show_bank_details_on_bills: !(settings.show_bank_details_on_bills ?? false),
+                        })
+                      }
+                      className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all shrink-0 ${settings.show_bank_details_on_bills
+                          ? 'bg-amber-500/20 border-amber-500 text-amber-300'
+                          : 'bg-slate-950 border-slate-700 text-slate-400'
+                        }`}
+                    >
+                      {settings.show_bank_details_on_bills ? 'Shown' : 'Hidden'}
+                    </button>
+                  </div>
                 </div>
               </div>
 

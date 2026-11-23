@@ -17,6 +17,9 @@ settingsRouter.put('/', (req: AuthRequest, res: Response) => {
     company_name,
     tagline,
     gstin,
+    show_gstin_on_bills,
+    bill_header_title,
+    show_bank_details_on_bills,
     phone,
     email,
     address,
@@ -35,6 +38,15 @@ settingsRouter.put('/', (req: AuthRequest, res: Response) => {
   if (company_name) db.settings.company_name = company_name.trim();
   if (tagline !== undefined) db.settings.tagline = tagline.trim();
   if (gstin !== undefined) db.settings.gstin = gstin.trim();
+  if (typeof show_gstin_on_bills === 'boolean') {
+    db.settings.show_gstin_on_bills = show_gstin_on_bills;
+  }
+  if (bill_header_title !== undefined) {
+    db.settings.bill_header_title = String(bill_header_title).trim() || 'CASH MEMO';
+  }
+  if (typeof show_bank_details_on_bills === 'boolean') {
+    db.settings.show_bank_details_on_bills = show_bank_details_on_bills;
+  }
   if (phone !== undefined) db.settings.phone = phone.trim();
   if (email !== undefined) db.settings.email = email.trim();
   if (address !== undefined) db.settings.address = address.trim();

@@ -5,6 +5,7 @@ import {
   generateNextBillNumber, 
   Bill, 
   BillItem, 
+  LaborChargeItem,
   Payment, 
   StockTransaction,
   Customer
@@ -13,34 +14,41 @@ import { AuthRequest } from './auth.js';
 
 export const billsRouter = Router();
 
-function calculateReminderDate(billDateStr: string, reminderType: string): string | null {
-  if (!reminderType || reminderType === 'No Reminder') return null;
-  const d = new Date(billDateStr);
-  if (isNaN(d.getTime())) return null;
-
-  switch (reminderType) {
-    case '7 Days':
-      d.setDate(d.getDate() + 7);
-      break;
-    case '2 Weeks':
-      d.setDate(d.getDate() + 14);
-      break;
-    case '1 Month':
-      d.setMonth(d.getMonth() + 1);
-      break;
-    case '3 Months':
-      d.setMonth(d.getMonth() + 3);
-      break;
-    case '6 Months':
-      d.setMonth(d.getMonth() + 6);
-      break;
-    case '1 Year':
-      d.setFullYear(d.getFullYear() + 1);
-      break;
-    default:
-      return null;
+function processLaborItems(rawLaborItems: any): { items: LaborChargeItem[]; total: number } {
+  if (!Array.isArray(rawLaborItems) || rawLaborItems.length === 0) {
+    return { items: [], total: 0 };
   }
-  return d.toISOString().split('T')[0];
+  const processed: LaborChargeItem[] = [];
+  let sum = 0;
+
+  for (let i = 0; i < rawLaborItems.length; i++) {
+    const raw = rawLaborItems[i];
+    const desc = (raw.description || '').trim();
+    const qty = raw.quantity !== undefined ? parseFloat(raw.quantity) : 1;
+    const rate = raw.rate !== undefined ? parseFloat(raw.rate) : parseFloat(raw.amount || 0);
+    let amount = raw.amount !== undefined ? parseFloat(raw.amount) : qty * rate;
+
+    if (isNaN(amount) || amount < 0) amount = 0;
+    const safeQty = !isNaN(qty) && qty > 0 ? qty : 1;
+    const safeRate = !isNaN(rate) && rate >= 0 ? rate : amount;
+    const finalAmt = Math.round(amount * 100) / 100;
+
+    if (!desc && finalAmt <= 0) continue;
+
+    processed.push({
+      id: raw.id || `labor_${Date.now()}_${i}_${Math.random().toString(36).substring(2, 5)}`,
+      description: desc || 'Labor Charges (Majuri)',
+      quantity: safeQty,
+      rate: Math.round(safeRate * 100) / 100,
+      amount: finalAmt,
+    });
+    sum += finalAmt;
+  }
+
+  return {
+    items: processed,
+    total: Math.round(sum * 100) / 100,
+  };
 }
 
 // Get next available bill number
@@ -94,8 +102,9 @@ billsRouter.get('/', (req: AuthRequest, res: Response) => {
     const term = search.toLowerCase().trim();
     bills = bills.filter(b => 
       b.bill_number.toLowerCase().includes(term) ||
+      (b.customer_account_number && b.customer_account_number.toLowerCase().includes(term)) ||
       b.customer_name.toLowerCase().includes(term) ||
-      b.customer_phone.toLowerCase().includes(term) ||
+      (b.customer_phone && b.customer_phone.toLowerCase().includes(term)) ||
       b.customer_district.toLowerCase().includes(term)
     );
   }
@@ -171,6 +180,7 @@ billsRouter.get('/:id', (req: AuthRequest, res: Response) => {
 billsRouter.post('/', (req: AuthRequest, res: Response) => {
   const {
     customer_id,
+    customer_account_number,
     customer_name,
     customer_phone,
     customer_address,
@@ -181,10 +191,15 @@ billsRouter.post('/', (req: AuthRequest, res: Response) => {
     bill_number,
     bill_date,
     items,
+    labor_items,
+    labor_charges,
+    discount_amount,
     payment_status,
     paid_amount,
     payment_mode,
-    reminder_type,
+    reminder_date,
+    reminder_time,
+    reminder_note,
     notes,
   } = req.body;
 
@@ -193,27 +208,58 @@ billsRouter.post('/', (req: AuthRequest, res: Response) => {
     return res.status(400).json({ success: false, message: 'At least one product item is required in the bill.' });
   }
 
-  if (!customer_name || !customer_phone) {
-    return res.status(400).json({ success: false, message: 'Customer name and phone number are required.' });
-  }
-
   const db = getDatabase();
   const now = new Date().toISOString();
+  const cleanAccountNum = customer_account_number ? String(customer_account_number).trim() : '';
 
-  // Handle customer record
-  let actualCustomerId = customer_id;
-  if (!actualCustomerId || save_as_new_customer) {
-    const existingCust = db.customers.find(
-      c => !c.deleted_at && c.phone === customer_phone.trim()
+  // Automatic Party Linkage via Account Number first, then customer_id
+  let linkedCustomer: Customer | undefined;
+  if (cleanAccountNum) {
+    linkedCustomer = db.customers.find(
+      c => !c.deleted_at && c.account_number && c.account_number.trim().toLowerCase() === cleanAccountNum.toLowerCase()
     );
-    if (existingCust) {
-      actualCustomerId = existingCust.id;
-    } else {
+  }
+  if (!linkedCustomer && customer_id) {
+    linkedCustomer = db.customers.find(c => !c.deleted_at && c.id === customer_id);
+  }
+
+  const resolvedName = linkedCustomer ? linkedCustomer.name : (customer_name ? String(customer_name).trim() : '');
+  const resolvedPhone = linkedCustomer
+    ? (customer_phone ? String(customer_phone).trim() : linkedCustomer.phone)
+    : (customer_phone ? String(customer_phone).trim() : '');
+
+  if (!resolvedName || (!resolvedPhone && !cleanAccountNum && !linkedCustomer)) {
+    return res.status(400).json({
+      success: false,
+      message: 'Customer name and either Party Account Number or Phone Number are required.',
+    });
+  }
+
+  // Handle customer record & account book linkage
+  let actualCustomerId = linkedCustomer ? linkedCustomer.id : '';
+  let resolvedAccountNum = linkedCustomer?.account_number || cleanAccountNum || undefined;
+
+  if (!actualCustomerId) {
+    // Check if phone matches an existing customer when phone is provided
+    if (resolvedPhone && !save_as_new_customer) {
+      const byPhone = db.customers.find(c => !c.deleted_at && c.phone && c.phone === resolvedPhone);
+      if (byPhone) {
+        actualCustomerId = byPhone.id;
+        if (!byPhone.account_number && cleanAccountNum) {
+          byPhone.account_number = cleanAccountNum;
+          byPhone.updated_at = now;
+        }
+        resolvedAccountNum = byPhone.account_number || cleanAccountNum || undefined;
+      }
+    }
+
+    if (!actualCustomerId) {
       actualCustomerId = `cust_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
       const newCust: Customer = {
         id: actualCustomerId,
-        name: customer_name.trim(),
-        phone: customer_phone.trim(),
+        account_number: cleanAccountNum || undefined,
+        name: resolvedName,
+        phone: resolvedPhone,
         address: customer_address ? customer_address.trim() : '',
         taluko: customer_taluko ? customer_taluko.trim() : '',
         district: customer_district ? customer_district.trim() : '',
@@ -224,6 +270,10 @@ billsRouter.post('/', (req: AuthRequest, res: Response) => {
       };
       db.customers.unshift(newCust);
     }
+  } else if (linkedCustomer && cleanAccountNum && !linkedCustomer.account_number) {
+    linkedCustomer.account_number = cleanAccountNum;
+    linkedCustomer.updated_at = now;
+    resolvedAccountNum = cleanAccountNum;
   }
 
   // Generate or check unique bill number
@@ -284,7 +334,25 @@ billsRouter.post('/', (req: AuthRequest, res: Response) => {
   }
 
   subtotal = Math.round(subtotal * 100) / 100;
-  const totalAmount = subtotal;
+
+  // Process Labor Charges (Majuri)
+  const laborResult = processLaborItems(labor_items);
+  const finalLaborTotal = laborResult.items.length > 0
+    ? laborResult.total
+    : Math.max(0, Math.round((parseFloat(labor_charges) || 0) * 100) / 100);
+
+  // Process Manual Net Discount
+  const finalDiscount = Math.max(0, Math.round((parseFloat(discount_amount) || 0) * 100) / 100);
+  const grossBeforeDiscount = Math.round((subtotal + finalLaborTotal) * 100) / 100;
+
+  if (finalDiscount > grossBeforeDiscount) {
+    return res.status(400).json({
+      success: false,
+      message: `Net discount (₹${finalDiscount}) cannot exceed gross total (₹${grossBeforeDiscount}).`,
+    });
+  }
+
+  const totalAmount = Math.max(0, Math.round((grossBeforeDiscount - finalDiscount) * 100) / 100);
 
   // Validate Payment logic
   let finalPaid = 0;
@@ -308,9 +376,12 @@ billsRouter.post('/', (req: AuthRequest, res: Response) => {
   }
 
   const finalPending = Math.round((totalAmount - finalPaid) * 100) / 100;
-  const reminderTypeClean = reminder_type || 'No Reminder';
   const billDateClean = bill_date || now.split('T')[0];
-  const reminderDate = calculateReminderDate(billDateClean, reminderTypeClean);
+
+  // Manual reminder date & time (no automatic intervals)
+  const cleanReminderDate = reminder_date ? String(reminder_date).trim() || null : null;
+  const cleanReminderTime = cleanReminderDate && reminder_time ? String(reminder_time).trim() || null : null;
+  const reminderTypeClean = cleanReminderDate ? 'Custom' : 'No Reminder';
 
   // Stock deduction & stock transaction audit
   for (const item of processedItems) {
@@ -332,30 +403,41 @@ billsRouter.post('/', (req: AuthRequest, res: Response) => {
       quantity: item.quantity,
       previous_stock: prevStock,
       new_stock: newStock,
-      notes: `Bill #${actualBillNumber} dispatch for ${customer_name}`,
+      notes: `Bill #${actualBillNumber} dispatch for ${resolvedName}`,
       created_by: req.user?.email || 'admin',
       created_at: now,
     });
   }
 
+  const finalAddress = linkedCustomer && !customer_address ? linkedCustomer.address : (customer_address ? customer_address.trim() : '');
+  const finalTaluko = linkedCustomer && !customer_taluko ? linkedCustomer.taluko : (customer_taluko ? customer_taluko.trim() : '');
+  const finalDistrict = linkedCustomer && !customer_district ? linkedCustomer.district : (customer_district ? customer_district.trim() : '');
+  const finalState = linkedCustomer && !customer_state ? linkedCustomer.state : (customer_state ? customer_state.trim() : '');
+
   const newBill: Bill = {
     id: billId,
     bill_number: actualBillNumber,
     customer_id: actualCustomerId,
-    customer_name: customer_name.trim(),
-    customer_phone: customer_phone.trim(),
-    customer_address: customer_address ? customer_address.trim() : '',
-    customer_taluko: customer_taluko ? customer_taluko.trim() : '',
-    customer_district: customer_district ? customer_district.trim() : '',
-    customer_state: customer_state ? customer_state.trim() : '',
+    customer_account_number: resolvedAccountNum,
+    customer_name: resolvedName,
+    customer_phone: resolvedPhone,
+    customer_address: finalAddress,
+    customer_taluko: finalTaluko,
+    customer_district: finalDistrict,
+    customer_state: finalState,
     bill_date: billDateClean,
     subtotal,
+    labor_items: laborResult.items,
+    labor_charges: finalLaborTotal,
+    discount_amount: finalDiscount,
     total_amount: totalAmount,
     paid_amount: finalPaid,
     pending_amount: finalPending,
     payment_status: finalStatus,
     reminder_type: reminderTypeClean,
-    reminder_date: reminderDate,
+    reminder_date: cleanReminderDate,
+    reminder_time: cleanReminderTime,
+    reminder_note: reminder_note ? String(reminder_note).trim() : undefined,
     notes: notes ? notes.trim() : '',
     status: 'confirmed',
     created_by: req.user?.email || 'admin',
@@ -374,7 +456,7 @@ billsRouter.post('/', (req: AuthRequest, res: Response) => {
       bill_id: billId,
       bill_number: actualBillNumber,
       customer_id: actualCustomerId,
-      customer_name: customer_name.trim(),
+      customer_name: resolvedName,
       payment_date: billDateClean,
       amount: finalPaid,
       previous_paid_amount: 0,
@@ -405,6 +487,7 @@ billsRouter.post('/', (req: AuthRequest, res: Response) => {
 billsRouter.put('/:id', (req: AuthRequest, res: Response) => {
   const { id } = req.params;
   const {
+    customer_account_number,
     customer_name,
     customer_phone,
     customer_address,
@@ -413,8 +496,13 @@ billsRouter.put('/:id', (req: AuthRequest, res: Response) => {
     customer_state,
     bill_date,
     items,
+    labor_items,
+    labor_charges,
+    discount_amount,
     notes,
-    reminder_type,
+    reminder_date,
+    reminder_time,
+    reminder_note,
   } = req.body;
 
   const db = getDatabase();
@@ -503,7 +591,25 @@ billsRouter.put('/:id', (req: AuthRequest, res: Response) => {
   }
 
   subtotal = Math.round(subtotal * 100) / 100;
-  const totalAmount = subtotal;
+
+  const laborResult = processLaborItems(labor_items);
+  const finalLaborTotal = labor_items !== undefined
+    ? laborResult.total
+    : (labor_charges !== undefined ? Math.max(0, Math.round((parseFloat(labor_charges) || 0) * 100) / 100) : (bill.labor_charges || 0));
+
+  const finalDiscount = discount_amount !== undefined
+    ? Math.max(0, Math.round((parseFloat(discount_amount) || 0) * 100) / 100)
+    : (bill.discount_amount || 0);
+
+  const grossBeforeDiscount = Math.round((subtotal + finalLaborTotal) * 100) / 100;
+  if (finalDiscount > grossBeforeDiscount) {
+    return res.status(400).json({
+      success: false,
+      message: `Net discount (₹${finalDiscount}) cannot exceed gross total (₹${grossBeforeDiscount}).`,
+    });
+  }
+
+  const totalAmount = Math.max(0, Math.round((grossBeforeDiscount - finalDiscount) * 100) / 100);
 
   if (bill.paid_amount > totalAmount) {
     return res.status(400).json({ 
@@ -537,7 +643,7 @@ billsRouter.put('/:id', (req: AuthRequest, res: Response) => {
     });
   }
 
-  // 4. Update bill records
+  // 4. Update bill records (and auto-link customer if account number changed & matches a party)
   db.bill_items = db.bill_items.filter(item => item.bill_id !== bill.id);
   db.bill_items.push(...newProcessedItems);
 
@@ -549,8 +655,34 @@ billsRouter.put('/:id', (req: AuthRequest, res: Response) => {
     paymentStatus = 'Partial Paid';
   }
 
+  if (customer_account_number !== undefined) {
+    const cleanAcc = String(customer_account_number).trim();
+    bill.customer_account_number = cleanAcc || undefined;
+    if (cleanAcc) {
+      const matchedCust = db.customers.find(
+        c => !c.deleted_at && c.account_number && c.account_number.trim().toLowerCase() === cleanAcc.toLowerCase()
+      );
+      if (matchedCust) {
+        bill.customer_id = matchedCust.id;
+        bill.customer_name = matchedCust.name;
+        bill.customer_phone = matchedCust.phone;
+        bill.customer_address = matchedCust.address || '';
+        bill.customer_taluko = matchedCust.taluko || '';
+        bill.customer_district = matchedCust.district || '';
+        bill.customer_state = matchedCust.state || '';
+        // Sync existing payment records for this bill to the linked party
+        for (const p of db.payments) {
+          if (p.bill_id === bill.id) {
+            p.customer_id = matchedCust.id;
+            p.customer_name = matchedCust.name;
+          }
+        }
+      }
+    }
+  }
+
   if (customer_name) bill.customer_name = customer_name.trim();
-  if (customer_phone) bill.customer_phone = customer_phone.trim();
+  if (customer_phone !== undefined) bill.customer_phone = customer_phone.trim();
   if (customer_address !== undefined) bill.customer_address = customer_address.trim();
   if (customer_taluko !== undefined) bill.customer_taluko = customer_taluko.trim();
   if (customer_district !== undefined) bill.customer_district = customer_district.trim();
@@ -559,13 +691,23 @@ billsRouter.put('/:id', (req: AuthRequest, res: Response) => {
   if (notes !== undefined) bill.notes = notes.trim();
 
   bill.subtotal = subtotal;
+  if (labor_items !== undefined) {
+    bill.labor_items = laborResult.items;
+  }
+  bill.labor_charges = finalLaborTotal;
+  bill.discount_amount = finalDiscount;
   bill.total_amount = totalAmount;
   bill.pending_amount = pendingAmount;
   bill.payment_status = paymentStatus;
 
-  if (reminder_type) {
-    bill.reminder_type = reminder_type;
-    bill.reminder_date = calculateReminderDate(bill.bill_date, reminder_type);
+  if (reminder_date !== undefined) {
+    const cleanDate = reminder_date ? String(reminder_date).trim() || null : null;
+    bill.reminder_date = cleanDate;
+    bill.reminder_time = cleanDate && reminder_time ? String(reminder_time).trim() || null : null;
+    bill.reminder_type = cleanDate ? 'Custom' : 'No Reminder';
+  }
+  if (reminder_note !== undefined) {
+    bill.reminder_note = String(reminder_note).trim() || undefined;
   }
 
   bill.updated_at = now;
@@ -578,6 +720,39 @@ billsRouter.put('/:id', (req: AuthRequest, res: Response) => {
       ...bill,
       items: newProcessedItems,
     },
+  });
+});
+
+// Update manual reminder date & time on any bill without touching inventory
+billsRouter.patch('/:id/reminder', (req: AuthRequest, res: Response) => {
+  const { id } = req.params;
+  const { reminder_date, reminder_time, reminder_note } = req.body;
+
+  const db = getDatabase();
+  const bill = db.bills.find(b => b.id === id && !b.deleted_at);
+  if (!bill) {
+    return res.status(404).json({ success: false, message: 'Bill not found.' });
+  }
+
+  const cleanDate = reminder_date ? String(reminder_date).trim() || null : null;
+  const cleanTime = cleanDate && reminder_time ? String(reminder_time).trim() || null : null;
+
+  bill.reminder_date = cleanDate;
+  bill.reminder_time = cleanTime;
+  bill.reminder_type = cleanDate ? 'Custom' : 'No Reminder';
+  if (reminder_note !== undefined) {
+    bill.reminder_note = String(reminder_note).trim() || undefined;
+  }
+  bill.updated_at = new Date().toISOString();
+
+  saveDatabase();
+
+  return res.json({
+    success: true,
+    message: cleanDate
+      ? `Reminder scheduled for ${cleanDate}${cleanTime ? ` at ${cleanTime}` : ''}.`
+      : 'Reminder cleared.',
+    bill,
   });
 });
 

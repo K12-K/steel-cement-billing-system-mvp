@@ -126,7 +126,7 @@ export const BillDetail: React.FC<BillDetailProps> = ({ billId, onNavigate }) =>
             onClick={handleSharePdf}
             disabled={isSharingPdf || isDownloadingPdf}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-500 hover:from-amber-500 hover:to-amber-400 text-white text-xs font-bold shadow-md shadow-amber-950/40 transition-all disabled:opacity-50"
-            title="Share exact tax invoice view as PDF via WhatsApp, Email, etc."
+            title="Share bill as PDF via WhatsApp, Email, etc."
           >
             {isSharingPdf ? (
               <>

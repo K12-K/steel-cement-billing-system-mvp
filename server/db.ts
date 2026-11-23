@@ -51,6 +51,7 @@ export interface ProductVariant {
 
 export interface Customer {
   id: string;
+  account_number?: string;
   name: string;
   phone: string;
   address: string;
@@ -76,10 +77,19 @@ export interface BillItem {
   total: number;
 }
 
+export interface LaborChargeItem {
+  id: string;
+  description: string;
+  quantity: number;
+  rate: number;
+  amount: number;
+}
+
 export interface Bill {
   id: string;
   bill_number: string;
   customer_id: string;
+  customer_account_number?: string;
   customer_name: string;
   customer_phone: string;
   customer_address: string;
@@ -88,14 +98,19 @@ export interface Bill {
   customer_state: string;
   bill_date: string;
   subtotal: number;
+  labor_items?: LaborChargeItem[];
+  labor_charges?: number;
+  discount_amount?: number;
   tax_rate?: number;
   tax_amount?: number;
   total_amount: number;
   paid_amount: number;
   pending_amount: number;
   payment_status: 'Pending' | 'Partial Paid' | 'Full Paid';
-  reminder_type: 'No Reminder' | '7 Days' | '2 Weeks' | '1 Month' | '3 Months' | '6 Months' | '1 Year';
+  reminder_type: string;
   reminder_date: string | null;
+  reminder_time?: string | null;
+  reminder_note?: string;
   notes?: string;
   status: 'confirmed' | 'draft' | 'cancelled';
   items?: BillItem[];
@@ -140,10 +155,43 @@ export interface StockTransaction {
   created_at: string;
 }
 
+export interface RozmelEntry {
+  id: string;
+  entry_date: string;
+  entry_time?: string;
+  type: 'in' | 'out';
+  amount: number;
+  particulars: string;
+  category?: string;
+  notes?: string;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DueReminder {
+  id: string;
+  party_name: string;
+  party_account_number?: string;
+  party_phone?: string;
+  title: string;
+  due_amount: number;
+  reminder_date: string | null;
+  reminder_time: string | null;
+  notes?: string;
+  status: 'pending' | 'settled';
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface BusinessSettings {
   company_name: string;
   tagline: string;
   gstin: string;
+  show_gstin_on_bills?: boolean;
+  bill_header_title?: string;
+  show_bank_details_on_bills?: boolean;
   phone: string;
   email: string;
   address: string;
@@ -167,6 +215,8 @@ export interface DatabaseSchema {
   bill_items: BillItem[];
   payments: Payment[];
   stock_transactions: StockTransaction[];
+  rozmel_entries: RozmelEntry[];
+  due_reminders: DueReminder[];
   settings: BusinessSettings;
 }
 
@@ -424,6 +474,7 @@ function getInitialData(): DatabaseSchema {
   const initialCustomers: Customer[] = [
     {
       id: 'cust_1',
+      account_number: '101',
       name: 'Ramesh Patel (Patel Developers)',
       phone: '9825123456',
       address: 'Plot 42, Shivalik High Street, Near Science City',
@@ -437,6 +488,7 @@ function getInitialData(): DatabaseSchema {
     },
     {
       id: 'cust_2',
+      account_number: '102',
       name: 'Vikram Singh Shekhawat',
       phone: '9414098765',
       address: 'Near Old Bus Stand, Village Road',
@@ -450,6 +502,7 @@ function getInitialData(): DatabaseSchema {
     },
     {
       id: 'cust_3',
+      account_number: '103',
       name: 'Kailash Choudhary (KK Infra)',
       phone: '9893011223',
       address: 'Sector 3, Industrial Area',
@@ -463,6 +516,7 @@ function getInitialData(): DatabaseSchema {
     },
     {
       id: 'cust_4',
+      account_number: '104',
       name: 'Mahesh Contractor',
       phone: '9726488990',
       address: 'Khodiyar Chowk, Main Market',
@@ -736,6 +790,9 @@ function getInitialData(): DatabaseSchema {
     company_name: 'Bhawani Steel & Cement Traders',
     tagline: 'Wholesale & Retail Distributors of TMT Sariya, Cement & Building Hardware',
     gstin: '24AAACB9876C1ZD',
+    show_gstin_on_bills: false,
+    bill_header_title: 'CASH MEMO',
+    show_bank_details_on_bills: false,
     phone: '+91 98250 99887 / +91 94260 11223',
     email: 'contact@bhawanisteel.com',
     address: 'Survey No. 128, National Highway 48, GIDC Phase-II',
@@ -769,6 +826,8 @@ function getInitialData(): DatabaseSchema {
     bill_items: initialBillItems,
     payments: initialPayments,
     stock_transactions: initialStockTransactions,
+    rozmel_entries: [],
+    due_reminders: [],
     settings: initialSettings,
   };
 }
@@ -781,6 +840,61 @@ export function getDatabase(): DatabaseSchema {
     try {
       const content = fs.readFileSync(DB_FILE, 'utf-8');
       dbInstance = JSON.parse(content);
+      if (dbInstance) {
+        let changed = false;
+        if (!Array.isArray(dbInstance.rozmel_entries)) {
+          dbInstance.rozmel_entries = [];
+          changed = true;
+        }
+        if (!Array.isArray(dbInstance.due_reminders)) {
+          dbInstance.due_reminders = [];
+          changed = true;
+        }
+        // Backfill account numbers on existing customers if missing
+        let nextAcc = 101;
+        const usedAccs = new Set(
+          (dbInstance.customers || [])
+            .map(c => c.account_number?.trim())
+            .filter(Boolean)
+        );
+        for (const c of dbInstance.customers || []) {
+          if (!c.account_number) {
+            while (usedAccs.has(String(nextAcc))) nextAcc++;
+            c.account_number = String(nextAcc);
+            usedAccs.add(c.account_number);
+            nextAcc++;
+            changed = true;
+          }
+        }
+        // Backfill customer_account_number on existing bills if missing
+        for (const b of dbInstance.bills || []) {
+          if (b.customer_account_number === undefined) {
+            const cust = dbInstance.customers.find(c => c.id === b.customer_id);
+            if (cust?.account_number) {
+              b.customer_account_number = cust.account_number;
+              changed = true;
+            }
+          }
+        }
+        // Backfill bill display preferences (Cash Memo default, hide GSTIN by default)
+        if (dbInstance.settings) {
+          if (dbInstance.settings.show_gstin_on_bills === undefined) {
+            dbInstance.settings.show_gstin_on_bills = false;
+            changed = true;
+          }
+          if (dbInstance.settings.bill_header_title === undefined) {
+            dbInstance.settings.bill_header_title = 'CASH MEMO';
+            changed = true;
+          }
+          if (dbInstance.settings.show_bank_details_on_bills === undefined) {
+            dbInstance.settings.show_bank_details_on_bills = false;
+            changed = true;
+          }
+        }
+        if (changed) {
+          saveDatabase();
+        }
+      }
       return dbInstance!;
     } catch (e) {
       console.error('Error reading database file, reinitializing default data:', e);

@@ -25,6 +25,7 @@ import { BillDetail } from './pages/BillDetail';
 import { EditBill } from './pages/EditBill';
 import { PendingPayments } from './pages/PendingPayments';
 import { PaymentAudit } from './pages/PaymentAudit';
+import { Rozmel } from './pages/Rozmel';
 import { Settings } from './pages/Settings';
 
 function AppContent() {
@@ -100,11 +101,13 @@ function AppContent() {
       case 'bills':
         return 'Invoices & Bills';
       case 'bill-detail':
-        return 'Tax Invoice Details';
+        return 'Bill / Cash Memo Details';
       case 'bill-edit':
         return 'Edit Bill';
       case 'pending-payments':
-        return 'Pending Receivables';
+        return 'Pending Dues & Reminders';
+      case 'rozmel':
+        return 'Rozmel / Daily Cash Book';
       case 'payment-audit':
         return 'Payment Audit Trail';
       case 'settings':
@@ -147,6 +150,7 @@ function AppContent() {
             <EditBill billId={activeParamId} onNavigate={navigate} />
           )}
           {currentPath === 'pending-payments' && <PendingPayments onNavigate={navigate} />}
+          {currentPath === 'rozmel' && <Rozmel />}
           {currentPath === 'payment-audit' && <PaymentAudit />}
           {currentPath === 'settings' && <Settings />}
         </main>
