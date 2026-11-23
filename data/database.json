@@ -254,7 +254,8 @@
       "state": "Gujarat",
       "created_at": "2026-10-01T11:51:50.663Z",
       "updated_at": "2026-10-01T11:51:50.663Z",
-      "deleted_at": null
+      "deleted_at": null,
+      "account_number": "101"
     },
     {
       "id": "cust_1790790383300_jodc",
@@ -266,7 +267,8 @@
       "state": "",
       "created_at": "2026-09-30T17:46:23.300Z",
       "updated_at": "2026-09-30T17:46:23.300Z",
-      "deleted_at": null
+      "deleted_at": null,
+      "account_number": "102"
     },
     {
       "id": "cust_1",
@@ -279,7 +281,8 @@
       "gst_number": "24AABCP1234E1Z4",
       "created_at": "2026-09-30T17:45:59.063Z",
       "updated_at": "2026-09-30T17:45:59.063Z",
-      "deleted_at": null
+      "deleted_at": null,
+      "account_number": "103"
     },
     {
       "id": "cust_2",
@@ -292,7 +295,8 @@
       "gst_number": "",
       "created_at": "2026-09-30T17:45:59.063Z",
       "updated_at": "2026-09-30T17:45:59.063Z",
-      "deleted_at": null
+      "deleted_at": null,
+      "account_number": "104"
     },
     {
       "id": "cust_3",
@@ -305,7 +309,8 @@
       "gst_number": "23AACCK5566L1ZP",
       "created_at": "2026-09-30T17:45:59.063Z",
       "updated_at": "2026-09-30T17:45:59.063Z",
-      "deleted_at": null
+      "deleted_at": null,
+      "account_number": "105"
     },
     {
       "id": "cust_4",
@@ -317,7 +322,8 @@
       "state": "Gujarat",
       "created_at": "2026-09-30T17:45:59.063Z",
       "updated_at": "2026-09-30T17:45:59.063Z",
-      "deleted_at": null
+      "deleted_at": null,
+      "account_number": "106"
     }
   ],
   "bills": [
@@ -344,7 +350,8 @@
       "created_by": "admin@steelsariya.com",
       "created_at": "2026-10-01T11:51:50.663Z",
       "updated_at": "2026-10-01T11:51:50.663Z",
-      "deleted_at": null
+      "deleted_at": null,
+      "customer_account_number": "101"
     },
     {
       "id": "bill_1790790383300_5gky",
@@ -369,7 +376,8 @@
       "created_by": "admin@steelsariya.com",
       "created_at": "2026-09-30T17:46:23.300Z",
       "updated_at": "2026-09-30T17:46:28.639Z",
-      "deleted_at": "2026-09-30T17:46:34.968Z"
+      "deleted_at": "2026-09-30T17:46:34.968Z",
+      "customer_account_number": "102"
     },
     {
       "id": "bill_1",
@@ -394,7 +402,8 @@
       "created_by": "admin@steelsariya.com",
       "created_at": "2026-09-20T10:15:00.000Z",
       "updated_at": "2026-09-22T14:30:00.000Z",
-      "deleted_at": null
+      "deleted_at": null,
+      "customer_account_number": "103"
     },
     {
       "id": "bill_2",
@@ -419,7 +428,8 @@
       "created_by": "admin@steelsariya.com",
       "created_at": "2026-09-25T11:00:00.000Z",
       "updated_at": "2026-09-25T11:00:00.000Z",
-      "deleted_at": null
+      "deleted_at": null,
+      "customer_account_number": "104"
     },
     {
       "id": "bill_3",
@@ -444,7 +454,8 @@
       "created_by": "admin@steelsariya.com",
       "created_at": "2026-09-28T09:45:00.000Z",
       "updated_at": "2026-09-28T09:45:00.000Z",
-      "deleted_at": null
+      "deleted_at": null,
+      "customer_account_number": "105"
     }
   ],
   "bill_items": [
@@ -754,6 +765,11 @@
     "account_number": "389920192831",
     "ifsc_code": "SBIN0001234",
     "branch": "Commercial City Branch",
-    "terms_conditions": "1. Goods once sold will not be taken back without prior inspection.\n2. Interest @18% p.a. will be charged if payment is delayed beyond 15 days.\n3. Weight verified on yard weighbridge is final and binding.\n4. Subject to local jurisdiction only."
-  }
+    "terms_conditions": "1. Goods once sold will not be taken back without prior inspection.\n2. Interest @18% p.a. will be charged if payment is delayed beyond 15 days.\n3. Weight verified on yard weighbridge is final and binding.\n4. Subject to local jurisdiction only.",
+    "show_gstin_on_bills": false,
+    "bill_header_title": "CASH MEMO",
+    "show_bank_details_on_bills": false
+  },
+  "rozmel_entries": [],
+  "due_reminders": []
 }
